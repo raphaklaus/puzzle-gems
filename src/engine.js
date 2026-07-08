@@ -7,6 +7,7 @@ k.loadRoot("./"); // A good idea for Itch.io publishing later
 const gemSize = 32;
 const gemPerLine = 6;
 const initialGemsHeight = 4
+const maxGemsHeight = 10
 
 const typeToColorMap = new Map()
 typeToColorMap.set(0, "#a6ffa7")
@@ -15,17 +16,37 @@ typeToColorMap.set(2, "#5a83ff")
 typeToColorMap.set(3, "#fff6b1")
 typeToColorMap.set(4, "#f08eff")
 
+let gemsContainer;
+let nextLineContainer;
+
 let cursor;
 let auxCursorDir = k.vec2(1, 0);
 let gems = []
 let direction = k.vec2(0, 0)
 let cellX
 let cellY
+let score = 0
+let newLineTimer
+const BASE_NEW_LINE_TIME = 5
+const SCREEN_MID = k.vec2((k.width() / 2) - gemPerLine * gemSize / 2, k.height() / 2)
 
 // console.log(typeToColorMap.size)
 
 k.scene("engine", () => {
+    gemsContainer = k.add([
+        k.pos(0, 0)
+    ])
+
+    gemsContainer.moveTo(SCREEN_MID)
+
     gems = setupGems()
+
+    nextLineContainer = k.add([
+        k.pos(SCREEN_MID.x, SCREEN_MID.y + ((gems.length) * gemSize)),
+        k.rect(gemPerLine * gemSize, gemSize),
+        k.color("black"),
+        k.z(-1)
+    ])
 
     // console.log("test", myArray)
     console.table(gems);
@@ -40,11 +61,16 @@ k.scene("engine", () => {
     gravity()
     // console.table("after check for a match", JSON.parse(JSON.stringify(gems)));
 
-    cursor = k.add([
+    newLineTimer = k.add([
+        timer()
+    ])
+
+    cursor = gemsContainer.add([
         k.pos(0, 0),
         k.rect(32, 32),
         k.outline(4, k.WHITE),
         k.fill(false),
+        k.z(2),
     ])
 
     let auxCursor = cursor.add([
@@ -52,6 +78,7 @@ k.scene("engine", () => {
         k.rect(32, 32),
         k.outline(4, k.WHITE),
         k.fill(false),
+        k.z(2)
     ])
 
     cursor.onKeyPress("left", () => {
@@ -134,31 +161,46 @@ k.scene("engine", () => {
     cursor.onKeyPress("enter", () => {
         let lineIndex = cellY
         let index = cellX
-        console.log('aux pos', auxCursor.pos)
-        let lineIndexAux = (auxCursor.worldPos.y / gemSize)
-        let indexAux = auxCursor.worldPos.x / gemSize
+        // console.log('aux pos', auxCursor.pos)
+        // console.log("blah", auxCursor.toOther(auxCursor, cursor.pos))
+        console.log("cursor", cursor.pos.x)
+        let lineIndexAux = (cursor.pos.y + (gemSize * auxCursorDir.y)) / gemSize
+        let indexAux = (cursor.pos.x + (gemSize * auxCursorDir.x)) / gemSize
+        console.log("lineIndexAux", lineIndexAux)
+        console.log("indexAux", indexAux)
         swap(lineIndex, index, lineIndexAux, indexAux);
         updateGemLocation(lineIndex, index, lineIndexAux, indexAux);
-        checkForAMatch(gems)
         gravity()
-        checkForAMatch(gems)
+        checkForAMatch(gems, true)
     })
 
     k.onUpdate(() => {
         cellX = cursor.pos.x / gemSize;
         cellY = cursor.pos.y / gemSize
+        console.log(cellY)
     })
 
-    k.onKeyPress("space", () => {
-        gravity();
+    k.onDraw(() => {
+        k.drawText({ text: `Score: ${score.toString()}`, width: 400, font: "sans-serif", size: 48, pos: k.vec2(k.width() / 2, 200), color: k.color("black") })
     })
+
+    newLineTimer.loop(BASE_NEW_LINE_TIME, () => {
+        // gems.push(generateGemsLine(gems.length))
+        // gemsContainer.moveTo(gemsContainer.pos.x, gemsContainer.pos.y - gemSize)
+        // checkForAMatch(gems, true)
+        console.table(gems)
+    })
+
+    // k.onKeyPress("space", () => {
+    //     gravity();
+    // })
 })
 
 k.go("engine")
 // let myArray = []
 const drawGem = (lineIndex, index, color) => {
     // myArray[lineIndex][index] = k.vec2(gemSize * index, gemSize * lineIndex)
-    return k.add([
+    return gemsContainer.add([
         k.pos(gemSize * index, gemSize * lineIndex),
         k.rect(gemSize, gemSize),
         k.color(color),
@@ -167,9 +209,6 @@ const drawGem = (lineIndex, index, color) => {
 }
 
 const isOutOfBounds = (direction) => {
-    let x = cursor.pos.x / gemSize;
-    let y = cursor.pos.y / gemSize
-
     let maxX = auxCursorDir.x > 0 ? gemPerLine - 2 : gemPerLine - 1
 
     if (direction.eq(k.vec2(1, 0)) && cellX >= maxX) {
@@ -238,30 +277,173 @@ const generateGem = (possibleChoices, lineIndex, index) => {
     }
 }
 
-const checkForAMatch = (gems) => {
+const checkForAMatch = (gems, isGamePlayMatch = false) => {
     for (let lineIndex = 0; lineIndex < gems.length; lineIndex++) {
         for (let index = 0; index < gemPerLine; index++) {
+            // Match 4 horizontal!
+            if (index <= (gemPerLine - 4) && gems[lineIndex][index].type !== undefined && gems[lineIndex][index].type === gems[lineIndex][index + 1].type &&
+                gems[lineIndex][index + 2].type === gems[lineIndex][index].type && gems[lineIndex][index + 3].type === gems[lineIndex][index].type) {
+                console.log("Match 4 horizontal!")
+
+                if (isGamePlayMatch) {
+                    score += 800
+                }
+
+                let toBeRemoved = [
+                    gems[lineIndex][index],
+                    gems[lineIndex][index + 1],
+                    gems[lineIndex][index + 2],
+                    gems[lineIndex][index + 3]
+
+                ]
+
+                toBeRemoved.forEach(gem => {
+                    if (gem.ref !== undefined) {
+                        gem.ref.animation.seek(0);
+                        let gemRef = gem.ref
+                        // Need to do it separately to avoid motation problems
+                        gem.type = undefined
+                        gem.ref = undefined
+
+                        if (isGamePlayMatch) {
+                            gemRef.animate("opacity", [1, 0], { duration: 0.5, loops: 1 });
+                            gemRef.onAnimateChannelFinished((name) => {
+                                if (name === "opacity") {
+                                    gemRef.destroy()
+                                    console.log("destroy!!")
+                                    gravity()
+                                }
+                            })
+                        } else {
+                            gemRef.destroy()
+                            gravity()
+                        }
+
+                    }
+                })
+                console.table(gems)
+            }
+
             // Match 3 horizontal!
-            // if (index <= (gemPerLine - 4) && gems[lineIndex][index].type === gems[lineIndex][index + 1].type &&
-            //     gems[lineIndex][index + 2].type === gems[lineIndex][index].type) {
-            //     // console.log("Match 3 horizontal!")
-            //     // gems[lineIndex][index] = { type: undefined, color: k.color(0, 0, 0, 0) }
-            //     // gems[lineIndex][index + 1] = { type: undefined, color: k.color(0, 0, 0, 0) }
-            //     // gems[lineIndex][index + 2] = { type: undefined, color: k.color(0, 0, 0, 0) }
-            // }
+            if (index <= (gemPerLine - 3) && gems[lineIndex][index].type !== undefined && gems[lineIndex][index].type === gems[lineIndex][index + 1].type &&
+                gems[lineIndex][index + 2].type === gems[lineIndex][index].type) {
+                console.log("Match 3 horizontal!")
+
+                if (isGamePlayMatch) {
+                    score += 300
+                }
+
+                let toBeRemoved = [
+                    gems[lineIndex][index],
+                    gems[lineIndex][index + 1],
+                    gems[lineIndex][index + 2]
+
+                ]
+
+                toBeRemoved.forEach(gem => {
+                    if (gem.ref !== undefined) {
+                        gem.ref.animation.seek(0);
+                        let gemRef = gem.ref
+                        // Need to do it separately to avoid motation problems
+                        gem.type = undefined
+                        gem.ref = undefined
+
+                        if (isGamePlayMatch) {
+                            gemRef.animate("opacity", [1, 0], { duration: 0.5, loops: 1 });
+                            gemRef.onAnimateChannelFinished((name) => {
+                                if (name === "opacity") {
+                                    gemRef.destroy()
+                                    console.log("destroy!!")
+                                    gravity()
+                                }
+                            })
+                        } else {
+                            gemRef.destroy()
+                            gravity()
+                        }
+
+                    }
+                })
+                console.table(gems)
+            }
+
+            // Match 4 vertical!
+            if (lineIndex <= (gems.length - 4) && gems[lineIndex][index].type !== undefined && gems[lineIndex][index].type === gems[lineIndex + 1][index].type &&
+                gems[lineIndex + 2][index].type === gems[lineIndex][index].type && gems[lineIndex + 3][index].type === gems[lineIndex][index].type) {
+                console.log("Match 4 vertical!")
+                if (isGamePlayMatch) {
+                    score += 400
+                }
+                let toBeRemoved = [
+                    gems[lineIndex][index],
+                    gems[lineIndex + 1][index],
+                    gems[lineIndex + 2][index],
+                    gems[lineIndex + 3][index]
+
+                ]
+
+
+                toBeRemoved.forEach(gem => {
+                    if (gem.ref !== undefined) {
+                        gem.ref.animation.seek(0);
+                        let gemRef = gem.ref
+                        // Need to do it separately to avoid motation problems
+                        gem.type = undefined
+                        gem.ref = undefined
+                        if (isGamePlayMatch) {
+                            gemRef.animate("opacity", [1, 0], { duration: 0.5, loops: 1 });
+                            gemRef.onAnimateChannelFinished((name) => {
+                                if (name === "opacity") {
+                                    gemRef.destroy()
+                                    console.log("destroy!!")
+                                    gravity()
+                                }
+                            })
+                        } else {
+                            gemRef.destroy()
+                            gravity()
+                        }
+                    }
+                })
+                console.table(gems)
+            }
 
             // Match 3 vertical!
-            if (lineIndex <= (gems.length - 3) && gems[lineIndex][index].type !== undefined && gems[lineIndex][index].type === gems[lineIndex + 1][index].type &&
+            if (lineIndex <= (gems.length - 3) && gems[lineIndex][index].type !== undefined && gems[lineIndex][index].type !== undefined && gems[lineIndex][index].type === gems[lineIndex + 1][index].type &&
                 gems[lineIndex + 2][index].type === gems[lineIndex][index].type) {
                 console.log("Match 3 vertical!")
-                gems[lineIndex][index].ref.destroy()
-                gems[lineIndex][index] = { type: undefined }
+                if (isGamePlayMatch) {
+                    score += 300
+                }
+                let toBeRemoved = [
+                    gems[lineIndex][index],
+                    gems[lineIndex + 1][index],
+                    gems[lineIndex + 2][index]
 
-                gems[lineIndex + 1][index].ref.destroy()
-                gems[lineIndex + 1][index] = { type: undefined }
+                ]
 
-                gems[lineIndex + 2][index].ref.destroy()
-                gems[lineIndex + 2][index] = { type: undefined }
+                toBeRemoved.forEach(gem => {
+                    if (gem.ref !== undefined) {
+                        gem.ref.animation.seek(0);
+                        let gemRef = gem.ref
+                        // Need to do it separately to avoid motation problems
+                        gem.type = undefined
+                        gem.ref = undefined
+                        if (isGamePlayMatch) {
+                            gemRef.animate("opacity", [1, 0], { duration: 0.5, loops: 1 });
+                            gemRef.onAnimateChannelFinished((name) => {
+                                if (name === "opacity") {
+                                    gemRef.destroy()
+                                    console.log("destroy!!")
+                                    gravity()
+                                }
+                            })
+                        } else {
+                            gemRef.destroy()
+                            gravity()
+                        }
+                    }
+                })
                 console.table(gems)
             }
         }
