@@ -1,5 +1,8 @@
 import kaplay from "kaplay";
 
+// import Stack from './stack'
+import Queue from './queue'
+
 const k = kaplay();
 
 k.loadRoot("./"); // A good idea for Itch.io publishing later
@@ -10,13 +13,13 @@ const initialGemsHeight = 4
 const maxGemsHeight = 8
 
 const typeToColorMap = new Map()
-typeToColorMap.set(0, "#a6ffa7")
-typeToColorMap.set(1, "#ff3d3d")
-typeToColorMap.set(2, "#5a83ff")
-typeToColorMap.set(3, "#fff6b1")
-typeToColorMap.set(4, "#f08eff")
+typeToColorMap.set(0, k.Color.fromHex("#a6ffa7"))
+typeToColorMap.set(1, k.Color.fromHex("#ff3d3d"))
+typeToColorMap.set(2, k.Color.fromHex("#5a83ff"))
+typeToColorMap.set(3, k.Color.fromHex("#fff6b1"))
+typeToColorMap.set(4, k.Color.fromHex("#f08eff"))
 
-const BASE_NEW_LINE_TIME = 50000
+const BASE_NEW_LINE_TIME = 500
 const SCALING = 4
 const SCREEN_MID = k.vec2((k.width() / 2) - (gemPerLine / 2) * gemSize * SCALING, 0)
 
@@ -26,8 +29,8 @@ let nextLineContainer;
 
 let cursor;
 let auxCursorDir = k.vec2(1, 0);
-let gems = Array.from({ length: maxGemsHeight }, () => Array.from({ length: gemPerLine }, () => ({ type: undefined, ref: undefined, animationPromise: Promise.resolve() })))
-console.log("otario")
+let gems = Array.from({ length: maxGemsHeight }, () => Array.from({ length: gemPerLine }, () => ({ type: undefined, ref: undefined })))
+console.log("Initialized")
 console.table(gems)
 let direction = k.vec2(0, 0)
 let cellX = 0
@@ -39,6 +42,7 @@ let topLine = initialGemsHeight
 let controller = { timeLeft: 0 }
 
 
+
 // console.log(typeToColorMap.size)
 
 k.scene("game over", () => {
@@ -48,7 +52,7 @@ k.scene("game over", () => {
 
 })
 
-k.scene("engine", () => {
+k.scene("engine", async () => {
     gemsContainer = k.add([
         k.pos(0, 0),
         k.animate(),
@@ -71,7 +75,7 @@ k.scene("engine", () => {
     ])
 
     // console.log("test", myArray)
-    console.table(gems);
+
 
     // for (let lineIndex = 0; lineIndex < gems.length; lineIndex++) {
     //     for (let index = 0; index < gemPerLine; index++) {
@@ -79,8 +83,7 @@ k.scene("engine", () => {
     //     }
     // }
 
-    checkForAMatch(gems)
-    gravity()
+    await applyEffectors(gems)
     // console.table("after check for a match", JSON.parse(JSON.stringify(gems)));
 
     newLineTimer = k.add([
@@ -197,40 +200,75 @@ k.scene("engine", () => {
 
     k.onKeyPress("escape", () => { throw new Error("Stop") })
 
-    cursor.onKeyPress("enter", () => {
+    cursor.onKeyPress("enter", async () => {
+        console.log("TIMER IS", controller.timeLeft)
         let lineIndex = cellY
         let index = cellX
 
         console.log("cellX", cellX)
         console.log("cellY", cellX)
 
-        // let lineIndexAux = (cursor.pos.y + (gemSize * auxCursorDir.y)) / gemSize
-        // let indexAux = (cursor.pos.x + (gemSize * auxCursorDir.x)) / gemSize
 
         let lineIndexAux = cellY + auxCursorDir.y
         let indexAux = cellX + auxCursorDir.x
+
+        // if (gems[lineIndex][index].swapping || gems[lineIndexAux][indexAux].swapping) {
+        //     return
+        // }
+
+        // let lineIndexAux = (cursor.pos.y + (gemSize * auxCursorDir.y)) / gemSize
+        // let indexAux = (cursor.pos.x + (gemSize * auxCursorDir.x)) / gemSize
+
         console.log("lineIndexAux", lineIndexAux)
         console.log("indexAux", indexAux)
-        swap(lineIndex, index, lineIndexAux, indexAux);
-        updateGemLocation(lineIndex, index, lineIndexAux, indexAux);
-        checkForAMatch(gems, true)
-        gravity()
+        await updateGemLocation(lineIndex, index, lineIndexAux, indexAux);
+        await applyEffectors(gems)
 
-        console.table(gems)
         console.log('topLine', topLine)
+    })
+
+    k.onKeyPress("q", () => {
+        console.log("Showing state")
+        console.table(gems)
     })
 
     k.onUpdate(() => {
         if (topLine === 0) {
             k.go('game over')
         }
+
+
+
     })
 
-    k.onDraw(() => {
+
+    gemsContainer.onDraw(() => {
+        for (let lineIndex = 0; lineIndex < gems.length; lineIndex++) {
+            for (let index = 0; index < gemPerLine; index++) {
+                if (gems[lineIndex][index].invisible === true) {
+                    continue
+                }
+
+                let type = gems[lineIndex][index].type
+
+                let color = typeToColorMap.get(type) ?? k.color(0, 0, 0, 0)
+
+                k.drawRect({
+                    width: gemSize,
+                    height: gemSize,
+                    pos: vec2((gemSize * index), (gemSize * lineIndex)),
+                    color,
+                    outline: { color: k.BLACK, width: 4 },
+                    opacity: type === undefined ? 0 : 1
+                });
+            }
+        }
+
+
         k.drawText({ text: `Score: ${controller.timeLeft.toString()}`, width: 400, font: "sans-serif", size: 48, pos: k.vec2(k.width() / 2, 200), color: k.color("black") })
     })
 
-    controller = newLineTimer.loop(BASE_NEW_LINE_TIME, () => {
+    controller = newLineTimer.loop(BASE_NEW_LINE_TIME, async () => {
 
         // gemsContainer.moveTo(k.vec2(oldPosX, (oldPosY - (gemSize * SCALING))))
         // gemsContainer.animation.seek(0)
@@ -254,39 +292,19 @@ k.scene("engine", () => {
         // gems[topLine] = nextLine
         // Make sure all animations have completed. Hacky solution. Review it!
 
-        let promises = gems.flat().map(gem => gem.animationPromise)
+        console.log("TIMER HITTTTTTTTTTTTT")
 
-        console.log(promises)
+        nextLine = generateGemsLine(gems.length)
+        gems.push(nextLine)
+        gems.shift()
+        await applyEffectors(gems)
 
-        Promise.all(promises).then((gem) => {
-            console.log("All animation complete!")
-            nextLine = generateGemsLine(gems.length)
-            gems.push(nextLine)
-            gems.shift()
-            checkForAMatch(gems, true)
-            console.table(gems)
-
-            gems.forEach(lines => {
-                lines.forEach(gem => {
-                    if (gem.ref !== undefined) {
-
-                        let oldPos = gem.ref.pos
-                        gem.ref.animation.seek(0)
-                        gem.ref.animate("pos", [oldPos, k.vec2(gem.ref.pos.x, gem.ref.pos.y - gemSize)], { duration: 1, loops: 1 })
-                    }
-                })
-            })
-
-        })
 
         // setTimeout(() => {
         //     let oldPosX = gemsContainer.pos.x
         //     let oldPosY = gemsContainer.pos.y
-        //     nextLine = generateGemsLine(gems.length)
         //     console.log("nextLine")
         //     console.table(nextLine)
-        //     gems.push(nextLine)
-        //     gems.shift()
         //     checkForAMatch(gems, true)
         //     console.table(gems)
 
@@ -401,13 +419,123 @@ const generateGem = (possibleChoices, lineIndex, index) => {
     }
 
     return {
-        type,
-        ref: drawGem(lineIndex, index, typeToColorMap.get(type))
+        type
     }
+}
+
+const applyEffectors = async (gems) => {
+    let result = checkForAMatch(gems)
+
+    await Promise.all(animateMatching(result))
+
+    gravity(gems)
+
+    if (result.length > 0) {
+        await applyEffectors(gems)
+    }
+}
+
+const animateMatching = (matchedGemsIndices) => {
+    return matchedGemsIndices
+        .filter(matchedGemIndices => {
+            const [lineIndex, index] = matchedGemIndices
+            console.log(matchedGemIndices)
+            return gems[lineIndex][index].type === undefined && gems[lineIndex][index].oldData.type !== undefined
+        })
+        .map(matchedGemIndices => {
+            const { promise, resolve, reject } = Promise.withResolvers()
+            const [lineIndex, index] = matchedGemIndices
+            let x = gemSize * index
+            let y = gemSize * lineIndex
+
+            let color = typeToColorMap.get(gems[lineIndex][index].oldData.type)
+
+            let obj = gems[lineIndex][index].swapReplicaRef || gemsContainer.add([
+                k.pos(x, y),
+                k.rect(gemSize, gemSize),
+                k.color(color),
+                k.outline(4, k.BLACK),
+                k.animate()
+            ])
+
+            gems[lineIndex][index].invisible = true
+            // obj.animation.seek(0)
+
+            obj.animate("opacity", [1, 0], { duration: 0.35, loops: 1, easing: k.easings.easeOutExpo })
+
+            obj.onAnimateFinished(() => {
+                resolve(obj)
+            })
+
+            return promise
+        })
+}
+
+const animate = (lineIndexA, indexA, lineIndexB, indexB) => {
+    const { promise, resolve, reject } = Promise.withResolvers()
+
+    if (gems[lineIndexA][indexA].type === undefined) {
+        reject()
+        return promise
+    }
+
+    const reset = () => {
+        // It only works because by the time the animation is finished, the swap has already inverted the order.
+        // This is to allow the swap on the array to happen first and have fast cells swapping.
+        gems[lineIndexB][indexB].invisible = false
+        gems[lineIndexB][indexB].swapping = false
+        gems[lineIndexB][indexB].swapReplicaRef = undefined
+    }
+
+    if (gems[lineIndexA][indexA].swapping) {
+        reset()
+    }
+
+    gems[lineIndexA][indexA].invisible = true
+    gems[lineIndexA][indexA].swapping = true
+
+    let x = gemSize * indexA
+    let y = gemSize * lineIndexA
+
+    let destX = gemSize * indexB
+    let destY = gemSize * lineIndexB
+
+    let color = typeToColorMap.get(gems[lineIndexA][indexA].type)
+
+
+    // If color is undefined, it is an empty cell, so no need to animate anything
+    // if (color === undefined) {
+    //     reject()
+    //     return promise
+    // }
+
+    let obj = gems[lineIndexA][indexA].swapReplicaRef || gemsContainer.add([
+        k.pos(x, y),
+        k.rect(gemSize, gemSize),
+        k.color(color),
+        k.outline(4, k.BLACK),
+        k.animate()
+    ])
+
+    gems[lineIndexA][indexA].swapReplicaRef = obj
+
+    // obj.unanimateAll()
+    obj.animation.seek(0)
+
+    obj.animate("pos", [k.vec2(x, y), k.vec2(destX, destY)], { duration: 0.3, loops: 1, easing: k.easings.easeOutExpo })
+
+
+    obj.onAnimateFinished(() => {
+        reset()
+        resolve(obj)
+    })
+
+    return promise
 }
 
 const DISAPPEAR_ANIM_DURATION = 0.5;
 const checkForAMatch = (gems, isGamePlayMatch = false) => {
+    let result = []
     for (let lineIndex = 0; lineIndex < gems.length; lineIndex++) {
         for (let index = 0; index < gemPerLine; index++) {
             // Match 4 horizontal!
@@ -420,41 +548,20 @@ const checkForAMatch = (gems, isGamePlayMatch = false) => {
                 }
 
                 let toBeRemoved = [
-                    gems[lineIndex][index],
-                    gems[lineIndex][index + 1],
-                    gems[lineIndex][index + 2],
-                    gems[lineIndex][index + 3]
+                    [lineIndex, index],
+                    [lineIndex, index + 1],
+                    [lineIndex, index + 2],
+                    [lineIndex, index + 3]
 
                 ]
 
-                toBeRemoved.forEach(gem => {
-                    if (gem.ref !== undefined) {
-                        gem.ref.animation.seek(0);
-                        let gemRef = gem.ref
-                        // Need to do it separately to avoid motation problems
-                        gem.type = undefined
-                        gem.ref = undefined
+                toBeRemoved.forEach(gemIndices => {
+                    const [lineIndex, index] = gemIndices
+                    gems[lineIndex][index].oldData = { type: gems[lineIndex][index].type }
+                    gems[lineIndex][index].type = undefined
 
-                        if (isGamePlayMatch) {
-                            gemRef.animate("opacity", [1, 0], { duration: DISAPPEAR_ANIM_DURATION, loops: 1 });
-                            gem.animationPromise = new Promise((resolve, reject) => {
-                                gemRef.onAnimateChannelFinished((name) => {
-                                    if (name === "opacity") {
-                                        resolve(gem)
-                                        gemRef.destroy()
-                                        console.log("destroy!!")
-                                        gravity()
-                                    }
-                                })
-                            })
-                        } else {
-                            gemRef.destroy()
-                            gravity()
-                        }
-
-                    }
+                    result.push(gemIndices)
                 })
-                console.table(gems)
             }
 
             // Match 3 horizontal!
@@ -467,38 +574,18 @@ const checkForAMatch = (gems, isGamePlayMatch = false) => {
                 }
 
                 let toBeRemoved = [
-                    gems[lineIndex][index],
-                    gems[lineIndex][index + 1],
-                    gems[lineIndex][index + 2]
+                    [lineIndex, index],
+                    [lineIndex, index + 1],
+                    [lineIndex, index + 2]
 
                 ]
 
-                toBeRemoved.forEach(gem => {
-                    if (gem.ref !== undefined) {
-                        gem.ref.animation.seek(0);
-                        let gemRef = gem.ref
-                        // Need to do it separately to avoid motation problems
-                        gem.type = undefined
-                        gem.ref = undefined
+                toBeRemoved.forEach(gemIndices => {
+                    const [lineIndex, index] = gemIndices
+                    gems[lineIndex][index].oldData = { type: gems[lineIndex][index].type }
+                    gems[lineIndex][index].type = undefined
 
-                        if (isGamePlayMatch) {
-                            gemRef.animate("opacity", [1, 0], { duration: DISAPPEAR_ANIM_DURATION, loops: 1 });
-                            gem.animationPromise = new Promise((resolve, reject) => {
-                                gemRef.onAnimateChannelFinished((name) => {
-                                    if (name === "opacity") {
-                                        resolve(gem)
-                                        gemRef.destroy()
-                                        console.log("destroy!!")
-                                        gravity()
-                                    }
-                                })
-                            })
-                        } else {
-                            gemRef.destroy()
-                            gravity()
-                        }
-
-                    }
+                    result.push(gemIndices)
                 })
                 // console.table(gems)
             }
@@ -511,40 +598,20 @@ const checkForAMatch = (gems, isGamePlayMatch = false) => {
                     score += 400
                 }
                 let toBeRemoved = [
-                    gems[lineIndex][index],
-                    gems[lineIndex + 1][index],
-                    gems[lineIndex + 2][index],
-                    gems[lineIndex + 3][index]
+                    [lineIndex, index],
+                    [lineIndex + 1, index],
+                    [lineIndex + 2, index],
+                    [lineIndex + 3, index]
 
                 ]
 
+                toBeRemoved.forEach(gemIndices => {
+                    const [lineIndex, index] = gemIndices
+                    gems[lineIndex][index].oldData = { type: gems[lineIndex][index].type }
+                    gems[lineIndex][index].type = undefined
 
-                toBeRemoved.forEach(gem => {
-                    if (gem.ref !== undefined) {
-                        gem.ref.animation.seek(0);
-                        let gemRef = gem.ref
-                        // Need to do it separately to avoid motation problems
-                        gem.type = undefined
-                        gem.ref = undefined
-                        if (isGamePlayMatch) {
-                            gemRef.animate("opacity", [1, 0], { duration: DISAPPEAR_ANIM_DURATION, loops: 1 });
-                            gem.animationPromise = new Promise((resolve, reject) => {
-                                gemRef.onAnimateChannelFinished((name) => {
-                                    if (name === "opacity") {
-                                        resolve(gem)
-                                        gemRef.destroy()
-                                        console.log("destroy!!")
-                                        gravity()
-                                    }
-                                })
-                            })
-                        } else {
-                            gemRef.destroy()
-                            gravity()
-                        }
-                    }
+                    result.push(gemIndices)
                 })
-                // console.table(gems)
             }
 
             // Match 3 vertical!
@@ -555,66 +622,43 @@ const checkForAMatch = (gems, isGamePlayMatch = false) => {
                     score += 300
                 }
                 let toBeRemoved = [
-                    gems[lineIndex][index],
-                    gems[lineIndex + 1][index],
-                    gems[lineIndex + 2][index]
+                    [lineIndex, index],
+                    [lineIndex + 1, index],
+                    [lineIndex + 2, index]
 
                 ]
 
-                toBeRemoved.forEach(gem => {
-                    if (gem.ref !== undefined) {
-                        gem.ref.animation.seek(0);
-                        let gemRef = gem.ref
-                        // Need to do it separately to avoid motation problems
-                        gem.type = undefined
-                        gem.ref = undefined
-                        if (isGamePlayMatch) {
-                            gemRef.animate("opacity", [1, 0], { duration: DISAPPEAR_ANIM_DURATION, loops: 1 });
-                            gem.animationPromise = new Promise((resolve, reject) => {
-                                gemRef.onAnimateChannelFinished((name) => {
-                                    if (name === "opacity") {
-                                        resolve(gem)
-                                        gemRef.destroy()
-                                        console.log("destroy!!")
-                                        gravity()
-                                    }
-                                })
-                            })
-                        } else {
-                            gemRef.destroy()
-                            gravity()
-                        }
-                    }
+                toBeRemoved.forEach(gemIndices => {
+                    const [lineIndex, index] = gemIndices
+                    gems[lineIndex][index].oldData = { type: gems[lineIndex][index].type }
+                    gems[lineIndex][index].type = undefined
+
+                    result.push(gemIndices)
                 })
-                // console.table(gems)
             }
         }
     }
 
-
     topLine = getTopLine()
+
+    return result
 }
 
-const gravity = () => {
+const gravity = (gems) => {
     console.log("gravity called")
     // console.table(gems)
     for (let lineIndex = gems.length - 1; lineIndex >= 0; lineIndex--) {
         for (let index = 0; index < gemPerLine; index++) {
-            if (lineIndex <= gems.length - 1) {
-                console.log("GRAVITY!")
+            if (lineIndex <= gems.length - 1 && gems[lineIndex][index].type !== undefined) {
                 // console.table(gems)
                 let collisionDepth = findCollision(lineIndex, index, 1)
-                console.log("UUUUUUUUUUUUUUUUUUUUUUUUUU", collisionDepth)
                 if (collisionDepth > 1) {
-                    console.log("AHUISAUISHUAHISAUHISAUIHSAHUISAUIHSAUIHSAUHISAUHISAUIHS")
-                    swap(lineIndex + collisionDepth - 1, index, lineIndex, index);
-                    // console.table(gems)
+                    console.log("gravity effect!", collisionDepth)
                     updateGemLocation(lineIndex + collisionDepth - 1, index, lineIndex, index);
                 }
             }
         }
     }
-
 }
 
 const findCollision = (lineIndex, index, depth) => {
@@ -632,6 +676,7 @@ const findCollision = (lineIndex, index, depth) => {
 }
 
 const swap = (lineIndexA, indexA, lineIndexB, indexB) => {
+    // console.log("SWAPPORRA");
     // console.log(`antes A: ${gems[lineIndexA][indexA].type}, antes B ${gems[lineIndexB][indexB].type}`);
     [gems[lineIndexA][indexA], gems[lineIndexB][indexB]] = [gems[lineIndexB][indexB], gems[lineIndexA][indexA]]
     // console.log(`depois A: ${gems[lineIndexA][indexA].type}, depois B ${gems[lineIndexB][indexB].type}`)
@@ -639,60 +684,20 @@ const swap = (lineIndexA, indexA, lineIndexB, indexB) => {
 }
 
 
-const updateGemLocation = (lineIndexA, indexA, lineIndexB, indexB) => {
-    const SWAP_ANIM_DURATION = 0.5;
-    const refA = gems[lineIndexA][indexA].ref
+const updateGemLocation = async (lineIndexA, indexA, lineIndexB, indexB) => {
+    let promises = [
+        animate(lineIndexA, indexA, lineIndexB, indexB),
+        animate(lineIndexB, indexB, lineIndexA, indexA)
+    ]
 
-    if (refA !== undefined) {
-        // console.log(`line Index: ${lineIndexA}, index: ${indexA}`)
-        console.log("serialize")
-        console.table(refA.serializeAnimations())
-        refA.animation.seek(0)
-        refA.animate("pos", [refA.pos.clone(), k.vec2(gemSize * indexA, gemSize * lineIndexA)], { duration: SWAP_ANIM_DURATION, loops: 1 });
-        console.log("after serialize")
-        console.table(refA.serializeAnimations())
-
-        const { resolve, promise } = Promise.withResolvers()
-
-        gems[lineIndexA][indexA].animationPromise = promise
-
-        refA.onAnimateChannelFinished((name) => {
-            if (name === "pos") {
-                gems[lineIndexA][indexA].animationPromise = resolve(gems[lineIndexA][indexA])
-            }
-        })
-    }
-    // else {
-    //     console.log("refA undefined")
-    // }
-
-    const refB = gems[lineIndexB][indexB].ref
-
-    if (refB !== undefined) {
-        // console.log(`line Index: ${lineIndexB}, index: ${indexB}`)
-        console.log("before serialize")
-        console.table(refB.serializeAnimations())
-
-        refB.animation.seek(0)
-        refB.animate("pos", [refB.pos.clone(), k.vec2(gemSize * indexB, gemSize * lineIndexB)], { duration: SWAP_ANIM_DURATION, loops: 1 });
-
-        const { resolve, promise } = Promise.withResolvers()
-        console.log("withResolver")
-        console.log(promise)
-
-        gems[lineIndexB][indexB].animationPromise = promise
-
-        console.log("after serialize")
-        console.table(refB.serializeAnimations())
-
-        refB.onAnimateChannelFinished((name) => {
-            if (name === "pos") {
-                gems[lineIndexB][indexB].animationPromise = resolve(gems[lineIndexB][indexB])
-            }
-        })
-    }
-    // else {
-    //     console.log("refB undefined")
-    // }
+    swap(lineIndexA, indexA, lineIndexB, indexB)
+    let results = await Promise.allSettled(promises)
+    results.forEach((result) => {
+        if (result.status === "fulfilled") {
+            result.value.destroy()
+        }
+    })
 
 }
+
+// let eventQueue = new Queue([gravity, checkForAMatch.bind(this, gems, true)])
