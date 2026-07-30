@@ -1,5 +1,6 @@
 import kaplay from "kaplay";
 
+import { defaultProperties } from "./utils";
 // import Stack from './stack'
 import Queue from './queue'
 
@@ -7,10 +8,15 @@ const k = kaplay();
 
 k.loadRoot("./"); // A good idea for Itch.io publishing later
 
+k.loadSprite("border", "border.png")
+
 const gemSize = 32;
 const gemPerLine = 6;
 const initialGemsHeight = 4
 const maxGemsHeight = 8
+
+const ANIMATION_GRAVITY_DURATION = 0.2
+const ANIMATION_SWAPPING_DURATION = 0.25
 
 const typeToColorMap = new Map()
 typeToColorMap.set(0, k.Color.fromHex("#a6ffa7"))
@@ -19,7 +25,7 @@ typeToColorMap.set(2, k.Color.fromHex("#5a83ff"))
 typeToColorMap.set(3, k.Color.fromHex("#fff6b1"))
 typeToColorMap.set(4, k.Color.fromHex("#f08eff"))
 
-const BASE_NEW_LINE_TIME = 500
+const BASE_NEW_LINE_TIME = 5
 const SCALING = 4
 const SCREEN_MID = k.vec2((k.width() / 2) - (gemPerLine / 2) * gemSize * SCALING, 0)
 
@@ -29,7 +35,7 @@ let nextLineContainer;
 
 let cursor;
 let auxCursorDir = k.vec2(1, 0);
-let gems = Array.from({ length: maxGemsHeight }, () => Array.from({ length: gemPerLine }, () => ({ type: undefined, ref: undefined })))
+let gems = Array.from({ length: maxGemsHeight }, () => Array.from({ length: gemPerLine }, () => ({ type: undefined, ref: undefined, ...defaultProperties() })))
 console.log("Initialized")
 console.table(gems)
 let direction = k.vec2(0, 0)
@@ -41,7 +47,7 @@ let nextLine = []
 let topLine = initialGemsHeight
 let controller = { timeLeft: 0 }
 
-
+k.setBackground(k.WHITE)
 
 // console.log(typeToColorMap.size)
 
@@ -66,13 +72,13 @@ k.scene("engine", async () => {
     console.log('setup')
     console.table(gems)
 
-    nextLineContainer = k.add([
-        k.pos(SCREEN_MID.x, k.height() - (2 * gemSize * SCALING)),
-        k.rect(gemPerLine * gemSize, gemSize),
-        k.color("black"),
-        k.scale(SCALING),
-        k.z(-1)
-    ])
+    // nextLineContainer = k.add([
+    //     k.pos(SCREEN_MID.x, k.height() - (2 * gemSize * SCALING)),
+    //     k.rect(gemPerLine * gemSize, gemSize),
+    //     k.color("black"),
+    //     k.scale(SCALING),
+    //     k.z(-1)
+    // ])
 
     // console.log("test", myArray)
 
@@ -92,17 +98,19 @@ k.scene("engine", async () => {
 
     cursor = gemsContainer.add([
         k.pos(0, 0),
-        k.rect(gemSize, gemSize),
-        k.outline(4, k.WHITE),
-        k.fill(false),
+        k.sprite("border"),
+        // k.rect(gemSize, gemSize),
+        // k.outline(4, k.WHITE),
+        // k.fill(false),
         k.z(2),
     ])
 
     let auxCursor = cursor.add([
         k.pos(gemSize, 0),
-        k.rect(gemSize, gemSize),
-        k.outline(4, k.WHITE),
-        k.fill(false),
+        k.sprite("border"),
+        // k.rect(gemSize, gemSize),
+        // k.outline(4, k.WHITE),
+        // k.fill(false),
         k.z(2)
     ])
 
@@ -221,7 +229,7 @@ k.scene("engine", async () => {
 
         console.log("lineIndexAux", lineIndexAux)
         console.log("indexAux", indexAux)
-        await updateGemLocation(lineIndex, index, lineIndexAux, indexAux);
+        await updateGemLocation(lineIndex, index, lineIndexAux, indexAux, { duration: ANIMATION_SWAPPING_DURATION, easing: k.easings.easeOutCirc });
         await applyEffectors(gems)
 
         console.log('topLine', topLine)
@@ -258,14 +266,14 @@ k.scene("engine", async () => {
                     height: gemSize,
                     pos: vec2((gemSize * index), (gemSize * lineIndex)),
                     color,
-                    outline: { color: k.BLACK, width: 4 },
+                    outline: { color: k.WHITE, width: 2 },
                     opacity: type === undefined ? 0 : 1
                 });
             }
         }
 
 
-        k.drawText({ text: `Score: ${controller.timeLeft.toString()}`, width: 400, font: "sans-serif", size: 48, pos: k.vec2(k.width() / 2, 200), color: k.color("black") })
+        // k.drawText({ text: `Score: ${controller.timeLeft.toString()}`, width: 400, font: "sans-serif", size: 18, pos: k.vec2(0, 0), color: k.color("black") })
     })
 
     controller = newLineTimer.loop(BASE_NEW_LINE_TIME, async () => {
@@ -294,10 +302,37 @@ k.scene("engine", async () => {
 
         console.log("TIMER HITTTTTTTTTTTTT")
 
-        nextLine = generateGemsLine(gems.length)
-        gems.push(nextLine)
-        gems.shift()
-        await applyEffectors(gems)
+        // checks all gems are swapped/visible
+        // await timeoutAnimationTime
+        // checks all gems are swapped/visible
+        // logs issue
+        // don't rise
+
+        const riser = async () => {
+            nextLine = generateGemsLine(gems.length)
+            gems.push(nextLine)
+            gems.shift()
+            await applyEffectors(gems)
+            cursor.moveTo(cursor.pos.x, cursor.pos.y - gemSize)
+            cellY = cursor.pos.y / gemSize
+        }
+
+        if (isAllMovementDone()) {
+            console.log("rise on first")
+            await riser()
+        } else {
+            await sleep(1000)
+            if (isAllMovementDone()) {
+                console.log("rise on second")
+                await riser()
+            } else {
+                console.log("rise not call at all")
+            }
+        }
+
+
+
+
 
 
         // setTimeout(() => {
@@ -334,6 +369,16 @@ k.scene("engine", async () => {
     // })
 })
 
+const isAllMovementDone = () => {
+    return gems.flat().every(gem => gem.swapping === false)
+}
+
+const sleep = (ms) => {
+    return new Promise((resolve, reject) => {
+        setTimeout(resolve, ms)
+    })
+}
+
 k.go("engine")
 // let myArray = []
 const drawGem = (lineIndex, index, color) => {
@@ -357,6 +402,8 @@ const getTopLine = () => {
 
     return result
 }
+
+
 
 const isOutOfBounds = (direction) => {
     let maxX = auxCursorDir.x > 0 ? gemPerLine - 2 : gemPerLine - 1
@@ -419,18 +466,34 @@ const generateGem = (possibleChoices, lineIndex, index) => {
     }
 
     return {
-        type
+        type,
+        ...defaultProperties()
     }
 }
 
 const applyEffectors = async (gems) => {
+    console.log("APPLY EFFECTORS")
     let result = checkForAMatch(gems)
 
     await Promise.all(animateMatching(result))
 
-    gravity(gems)
+    let danglingCells = gravity(gems)
 
-    if (result.length > 0) {
+    console.log('danglingCells', danglingCells)
+
+    let gravityAnimationPromises = danglingCells.map(cellAboveGround => {
+        const [lineIndex, index] = cellAboveGround[0]
+        const [lineIndexEmpty, indexEmpty] = cellAboveGround[1]
+
+        return updateGemLocation(lineIndex, index, lineIndexEmpty, indexEmpty, { duration: ANIMATION_GRAVITY_DURATION, easing: k.easings.easeInCubic })
+    })
+
+    await Promise.all(gravityAnimationPromises)
+
+    result = checkForAMatch(gems)
+    await Promise.all(animateMatching(result))
+
+    if (result.length > 0 || danglingCells.length > 0) {
         await applyEffectors(gems)
     }
 }
@@ -440,6 +503,7 @@ const animateMatching = (matchedGemsIndices) => {
         .filter(matchedGemIndices => {
             const [lineIndex, index] = matchedGemIndices
             console.log(matchedGemIndices)
+            // TODO: check that the condition below is going to affect only the previously matched gems
             return gems[lineIndex][index].type === undefined && gems[lineIndex][index].oldData.type !== undefined
         })
         .map(matchedGemIndices => {
@@ -454,7 +518,7 @@ const animateMatching = (matchedGemsIndices) => {
                 k.pos(x, y),
                 k.rect(gemSize, gemSize),
                 k.color(color),
-                k.outline(4, k.BLACK),
+                k.outline(2, k.WHITE),
                 k.animate()
             ])
 
@@ -471,23 +535,41 @@ const animateMatching = (matchedGemsIndices) => {
         })
 }
 
-const animate = (lineIndexA, indexA, lineIndexB, indexB) => {
+const animate = (lineIndexA, indexA, lineIndexB, indexB, animation) => {
+    const { duration, easing } = animation
     const { promise, resolve, reject } = Promise.withResolvers()
+
+    console.log("Porra", gems[lineIndexA])
 
     if (gems[lineIndexA][indexA].type === undefined) {
         reject()
         return promise
     }
 
+    console.log("reset, before lineIndex", lineIndexB)
+    console.log("reset, before index", indexB)
+
     const reset = () => {
+        if (gems[lineIndexB][indexB].invisible === false || gems[lineIndexB][indexB].swapping === false) {
+            console.trace()
+            console.log("DEU RUIM,  lineIndex", lineIndexB)
+            console.log("DEU RUIM,  index", indexB)
+            console.log("DEU RUIM, swapping", gems[lineIndexB][indexB].swapping)
+            console.log("DEU RUIM, invisible", gems[lineIndexB][indexB].invisible)
+            console.table(gems)
+        }
         // It only works because by the time the animation is finished, the swap has already inverted the order.
         // This is to allow the swap on the array to happen first and have fast cells swapping.
+        console.log("reset, after lineIndex", lineIndexB)
+        console.log("reset, after index", indexB)
         gems[lineIndexB][indexB].invisible = false
         gems[lineIndexB][indexB].swapping = false
         gems[lineIndexB][indexB].swapReplicaRef = undefined
     }
 
-    if (gems[lineIndexA][indexA].swapping) {
+    // It only works because by the time the animation is finished, the swap has already inverted the order.
+    // This is to allow the swap on the array to happen first and have fast cells swapping.
+    if (gems[lineIndexB][indexB].swapping) {
         reset()
     }
 
@@ -513,7 +595,7 @@ const animate = (lineIndexA, indexA, lineIndexB, indexB) => {
         k.pos(x, y),
         k.rect(gemSize, gemSize),
         k.color(color),
-        k.outline(4, k.BLACK),
+        k.outline(2, k.WHITE),
         k.animate()
     ])
 
@@ -522,13 +604,19 @@ const animate = (lineIndexA, indexA, lineIndexB, indexB) => {
     // obj.unanimateAll()
     obj.animation.seek(0)
 
-    obj.animate("pos", [k.vec2(x, y), k.vec2(destX, destY)], { duration: 0.3, loops: 1, easing: k.easings.easeOutExpo })
+    obj.animate("pos", [k.vec2(x, y), k.vec2(destX, destY)], { duration, loops: 1, easing })
 
 
     obj.onAnimateFinished(() => {
         reset()
         resolve(obj)
     })
+
+    // For some reason, sometimes the reset() seems to not be called. This is essentialy a timeout machanism
+    // setTimeout(() => {
+    //     reset()
+    //     resolve(obj)
+    // }, (animation.duration + 0.1) * 1000)
 
     return promise
 }
@@ -646,19 +734,71 @@ const checkForAMatch = (gems, isGamePlayMatch = false) => {
 
 const gravity = (gems) => {
     console.log("gravity called")
+    let result = []
     // console.table(gems)
-    for (let lineIndex = gems.length - 1; lineIndex >= 0; lineIndex--) {
-        for (let index = 0; index < gemPerLine; index++) {
-            if (lineIndex <= gems.length - 1 && gems[lineIndex][index].type !== undefined) {
-                // console.table(gems)
-                let collisionDepth = findCollision(lineIndex, index, 1)
-                if (collisionDepth > 1) {
-                    console.log("gravity effect!", collisionDepth)
-                    updateGemLocation(lineIndex + collisionDepth - 1, index, lineIndex, index);
+
+    for (let index = 0; index < gemPerLine; index++) {
+        let floor = maxGemsHeight - 1
+        let isFloorSearching = true
+        let getAllAbove = false
+        // This count is to keep track how much the next gem should go up when the previous one is the "new floor"
+        let count = 0
+        for (let lineIndex = gems.length - 1; lineIndex >= 0; lineIndex--) {
+            if (lineIndex >= 1) {
+                if (isFloorSearching && gems[lineIndex][index].type !== undefined) {
+                    floor = lineIndex - 1
                 }
+
+                if (!getAllAbove && gems[lineIndex][index].type === undefined && gems[lineIndex - 1][index].type !== undefined) {
+                    getAllAbove = true
+                    isFloorSearching = false
+
+                    result.push(
+                        [
+                            [lineIndex - 1, index],
+                            [floor - count, index]
+                        ]
+                    )
+
+                    count++
+
+                    continue
+                }
+
+                if (getAllAbove && gems[lineIndex - 1][index].type !== undefined) {
+                    result.push(
+                        [
+                            [lineIndex - 1, index],
+                            [floor - count, index]
+                        ]
+                    )
+
+                    count++
+                }
+
+
             }
         }
     }
+    // for (let lineIndex = gems.length - 1; lineIndex >= 0; lineIndex--) {
+    //     for (let index = 0; index < gemPerLine; index++) {
+    //         if (lineIndex <= gems.length - 1 && gems[lineIndex][index].type !== undefined) {
+    //             // console.table(gems)
+    //             let collisionDepth = findCollision(lineIndex, index, 1)
+    //             if (collisionDepth > 1) {
+    //                 console.log("gravity effect!", collisionDepth)
+    //                 result = [
+    //                     [lineIndex, index],
+    //                     [lineIndex + collisionDepth - 1, index],
+    //                 ]
+    //                 break
+    //                 // swap(lineIndex, index, lineIndex + collisionDepth - 1, index)
+    //                 // updateGemLocation(lineIndex + collisionDepth - 1, index, lineIndex, index);
+    //             }
+    //         }
+    //     }
+    // }
+    return result
 }
 
 const findCollision = (lineIndex, index, depth) => {
@@ -684,10 +824,10 @@ const swap = (lineIndexA, indexA, lineIndexB, indexB) => {
 }
 
 
-const updateGemLocation = async (lineIndexA, indexA, lineIndexB, indexB) => {
+const updateGemLocation = async (lineIndexA, indexA, lineIndexB, indexB, animation) => {
     let promises = [
-        animate(lineIndexA, indexA, lineIndexB, indexB),
-        animate(lineIndexB, indexB, lineIndexA, indexA)
+        animate(lineIndexA, indexA, lineIndexB, indexB, animation),
+        animate(lineIndexB, indexB, lineIndexA, indexA, animation)
     ]
 
     swap(lineIndexA, indexA, lineIndexB, indexB)
