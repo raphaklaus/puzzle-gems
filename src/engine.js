@@ -1,12 +1,13 @@
 import kaplay from "kaplay";
 
-import { defaultProperties } from "./utils";
+import { defaultProperties, generateRandomNumber, getHighScore, setupLocalStorage, saveHighScore } from "./utils";
 // import Stack from './stack'
 import Queue from './queue'
 
-const k = kaplay();
+const k = kaplay({ letterbox: true, width: 1920, height: 1080 });
 
 k.loadRoot("./"); // A good idea for Itch.io publishing later
+k.loadFont("numbers", "numbers.ttf")
 
 k.loadSprite("border", "border.png")
 k.loadSprite("gem", "gem.png", {
@@ -29,20 +30,21 @@ const typeToColorMap = new Map()
 typeToColorMap.set(0, k.Color.fromHex("#a6ffa7"))
 typeToColorMap.set(1, k.Color.fromHex("#ff3d3d"))
 typeToColorMap.set(2, k.Color.fromHex("#5a83ff"))
-typeToColorMap.set(3, k.Color.fromHex("#fff6b1"))
+typeToColorMap.set(3, k.Color.fromHex("#d9b93b"))
 typeToColorMap.set(4, k.Color.fromHex("#f08eff"))
 
-const BASE_NEW_LINE_TIME = 5
+const BASE_NEW_LINE_TIME = 3
+let newLineTimeModifier = 0
 const SCALING = 4
 const SCREEN_MID = k.vec2((k.width() / 2) - (gemPerLine / 2) * gemSize * SCALING, 0)
-
+const GAME_TYPE_1_DURATION = 120
 
 let gemsContainer;
 let nextLineContainer;
 
 let cursor;
 let auxCursorDir = k.vec2(1, 0);
-let gems = Array.from({ length: maxGemsHeight }, () => Array.from({ length: gemPerLine }, () => ({ type: undefined, ref: undefined, ...defaultProperties() })))
+let gems
 console.log("Initialized")
 console.table(gems)
 let direction = k.vec2(0, 0)
@@ -51,16 +53,29 @@ let cellY = 0
 let score = 0
 let newLineTimer
 let nextLine = []
-let topLine = initialGemsHeight
 let controller = { timeLeft: 0 }
+let topLine = initialGemsHeight
+let isTimeControl = true
 
-k.setBackground(k.WHITE)
+k.setBackground(k.Color.fromHex("#ffcf82"))
 
+let highScore = getHighScore()
 // console.log(typeToColorMap.size)
 
 k.scene("game over", () => {
+    saveHighScore(score)
+
     k.onDraw(() => {
-        k.drawText({ text: `Game over!`, width: 400, font: "sans-serif", size: 48, pos: k.vec2(k.width() / 2, 200), color: k.color("black") })
+        k.drawText({ font: "numbers", text: `Game over! Your score is: ${score.toString()}`, width: k.width(), size: 48, pos: k.vec2(0, 200), color: k.color("black"), align: "center" })
+
+        if (score > highScore) {
+            k.drawText({ font: "numbers", text: `Congratulations! You beat the high score!`, width: k.width(), size: 48, pos: k.vec2(0, 300), color: k.color("black"), align: "center" })
+        }
+    })
+
+
+    k.onKeyPress("space", () => {
+        k.go("engine")
     })
 
 })
@@ -73,15 +88,47 @@ const moveCursorUp = () => {
     cellY = cursor.pos.y / gemSize
 }
 
+const makeGrid = (colorAlternation) => {
+    return [
+        k.color(k.BLACK),
+        k.opacity(colorAlternation ? 0.1 : 0.05),
+        k.rect(gemSize, gemSize, { radius: 1 }),
+    ]
+}
+
+const gridSetup = () => {
+    for (let lineIndex = 0; lineIndex < maxGemsHeight + initialGemsHeight; lineIndex++) {
+        for (let index = 0; index < gemPerLine; index++) {
+            let obj = gemsContainer.add(makeGrid((lineIndex + index) % 2))
+
+            obj.use(k.pos(index * gemSize, lineIndex * gemSize))
+            obj.use(k.z(-1))
+        }
+    }
+}
+
 k.scene("engine", async () => {
     // To show FPS
     // k.debug.inspect = true
+    score = 0
+    gems = Array.from({ length: maxGemsHeight }, () => Array.from({ length: gemPerLine }, () => ({ type: undefined, ref: undefined, ...defaultProperties(), value: generateRandomNumber() })))
+    topLine = initialGemsHeight
+    auxCursorDir = k.vec2(1, 0);
+    cellX = 0
+    cellY = 0
+    highScore = getHighScore()
+
+    setupLocalStorage()
+
+
 
     gemsContainer = k.add([
         k.pos(0, 0),
         k.animate(),
         k.scale(SCALING),
     ])
+
+    gridSetup()
 
     gemsContainer.moveTo(SCREEN_MID)
 
@@ -90,11 +137,11 @@ k.scene("engine", async () => {
     console.log('setup')
     console.table(gems)
 
-    k.add([
-        k.sprite("gem", { anim: "idle" }),
-        k.pos(0, 0),
-        // k.color(k.Color.fromHex("#0c720c"))
-    ])
+    // k.add([
+    //     k.sprite("gem", { anim: "idle" }),
+    //     k.pos(0, 0),
+    //     // k.color(k.Color.fromHex("#0c720c"))
+    // ])
 
 
 
@@ -115,12 +162,18 @@ k.scene("engine", async () => {
     //     }
     // }
 
-    await applyEffectors(gems)
+    await applyEffectors(gems, false)
     // console.table("after check for a match", JSON.parse(JSON.stringify(gems)));
 
     newLineTimer = k.add([
         timer()
     ])
+
+    let gameTimer = k.add([
+        timer()
+    ])
+
+
 
     cursor = gemsContainer.add([
         k.pos(0, 0),
@@ -128,7 +181,7 @@ k.scene("engine", async () => {
         // k.rect(gemSize, gemSize),
         // k.outline(4, k.WHITE),
         // k.fill(false),
-        k.z(2),
+        k.z(4),
     ])
 
     let auxCursor = cursor.add([
@@ -137,7 +190,7 @@ k.scene("engine", async () => {
         // k.rect(gemSize, gemSize),
         // k.outline(4, k.WHITE),
         // k.fill(false),
-        k.z(2)
+        k.z(4)
     ])
 
     cursor.onKeyPress("left", () => {
@@ -234,7 +287,7 @@ k.scene("engine", async () => {
 
     k.onKeyPress("escape", () => { throw new Error("Stop") })
 
-    cursor.onKeyPress("enter", async () => {
+    cursor.onKeyPress("space", async () => {
         console.log("TIMER IS", controller.timeLeft)
         let lineIndex = cellY
         let index = cellX
@@ -268,13 +321,10 @@ k.scene("engine", async () => {
 
     k.onUpdate(() => {
         if (topLine === 0) {
+            topLine = initialGemsHeight
             k.go('game over')
         }
-
-
-
     })
-
 
     gemsContainer.onDraw(() => {
         for (let lineIndex = 0; lineIndex < gems.length; lineIndex++) {
@@ -293,54 +343,30 @@ k.scene("engine", async () => {
                     pos: vec2((gemSize * index), (gemSize * lineIndex)),
                     color,
                     outline: { color: k.WHITE, width: 2 },
-                    opacity: type === undefined ? 0 : 1
+                    opacity: type === undefined ? 0 : 1,
+                    z: 2
                 });
+
+                if (gems[lineIndex][index].type !== undefined) {
+                    k.drawText({
+                        text: gems[lineIndex][index].value.toString(),
+                        size: 12,
+                        font: "numbers",
+                        width: 32,
+                        pos: vec2((gemSize * index) + 2, (gemSize * lineIndex) + 2),
+                        color: k.WHITE
+                    })
+                }
             }
         }
-
-
-        // k.drawText({ text: `Score: ${controller.timeLeft.toString()}`, width: 400, font: "sans-serif", size: 18, pos: k.vec2(0, 0), color: k.color("black") })
     })
 
-    controller = newLineTimer.loop(BASE_NEW_LINE_TIME, async () => {
-
-        // gemsContainer.moveTo(k.vec2(oldPosX, (oldPosY - (gemSize * SCALING))))
-        // gemsContainer.animation.seek(0)
-        // gemsContainer.animate("pos", [k.vec2(oldPosX, oldPosY), k.vec2(oldPosX, (oldPosY - (gemSize * SCALING)))], { duration: 2, loops: 1 })
-        // nextLine.forEach(gem => {
-        //     console.log("foreach")
-        //     gem.ref.animation.seek(0);
-        //     gem.ref.animate("pos", [k.vec2(gem.ref.pos.x, gem.ref.pos.y + (gemSize)), k.vec2(gem.ref.pos.x, gem.ref.pos.y)], { duration: 2, loops: 1 })
-        //     gem.ref.onAnimateChannelFinished((name) => {
-        //         console.log("finished???????????")
-        //         if (name === "pos") {
-        //             finishedCount += 1
-        //             console.log("finished!!", finishedCount)
-        //         }
-        //     })
-        // })
-        // gemsContainer.onAnimateChannelFinished((name) => {
-
-        // console.log("FINISHED")
-        // if (name === "pos") {
-        // gems[topLine] = nextLine
-        // Make sure all animations have completed. Hacky solution. Review it!
-
-        console.log("TIMER HITTTTTTTTTTTTT")
-
-        // checks all gems are swapped/visible
-        // await timeoutAnimationTime
-        // checks all gems are swapped/visible
-        // logs issue
-        // don't rise
-
-
+    const newLineRiser = async () => {
         const makeNextLineGemsVisible = (nextLine) => {
             nextLine.forEach(gem => {
                 gem.invisible = false
             })
         }
-
 
         const animateNextLine = (nextLine, callback) => {
             return Promise.all(nextLine.map((gem, index) => {
@@ -349,7 +375,19 @@ k.scene("engine", async () => {
                     k.rect(gemSize, gemSize),
                     k.color(typeToColorMap.get(gem.type)),
                     k.outline(2, k.WHITE),
-                    k.animate()
+                    k.animate(),
+                    k.z(2)
+                ])
+
+                obj.add([
+                    k.pos(2, 2),
+                    k.text(gem.value.toString(), {
+                        size: 12,
+                        width: 32,
+                        font: "numbers",
+                        color: k.WHITE
+                    }),
+                    k.z(2)
                 ])
 
                 let prevPos = obj.pos.clone()
@@ -368,15 +406,19 @@ k.scene("engine", async () => {
             }))
         }
 
-
-
         const riser = async () => {
+            newLineTimeModifier -= 0.5
             nextLine = generateGemsLine(gems.length, true)
             gems.push(nextLine)
             gems.shift()
             moveCursorUp()
             await animateNextLine(nextLine, makeNextLineGemsVisible)
             await applyEffectors(gems)
+
+            if (!isTimeControl) {
+                controller.cancel()
+                controller = newLineTimer.loop(Math.max(BASE_NEW_LINE_TIME + newLineTimeModifier, 2), newLineRiser, undefined, true)
+            }
         }
 
         if (isAllMovementDone()) {
@@ -419,8 +461,26 @@ k.scene("engine", async () => {
 
 
         // }, 10000)
+    }
 
-    }, undefined, true)
+    if (!isTimeControl) {
+        controller = newLineTimer.loop(BASE_NEW_LINE_TIME, newLineRiser, undefined, true)
+    } else {
+        cursor.onKeyPress("enter", async () => {
+            await newLineRiser()
+        })
+        controller = gameTimer.wait(GAME_TYPE_1_DURATION, () => {
+            k.go("game over")
+        })
+    }
+
+    k.onDraw(() => {
+        // console.log(score)
+        k.drawText({ font: "numbers", text: `Score: ${score.toString()}`, width: 400, size: 48, pos: k.vec2(200, 200), color: k.color("black") })
+        k.drawText({ font: "numbers", text: `High score: ${highScore.toString()}`, width: 400, size: 48, pos: k.vec2(200, 350), color: k.color("black") })
+        k.drawText({ font: "numbers", text: `Time: ${Math.trunc(GAME_TYPE_1_DURATION - controller.timeLeft).toString()}`, width: 400, size: 48, pos: k.vec2(1500, 300), color: k.color("black") })
+
+    })
 
     // k.onKeyPress("space", () => {
     //     gravity();
@@ -529,9 +589,9 @@ const generateGem = (possibleChoices, lineIndex, index, invisible = false) => {
     }
 }
 
-const applyEffectors = async (gems) => {
+const applyEffectors = async (gems, isSetup) => {
     console.log("APPLY EFFECTORS")
-    let result = checkForAMatch(gems)
+    let result = checkForAMatch(gems, isSetup)
 
     await Promise.all(animateMatching(result))
 
@@ -548,11 +608,11 @@ const applyEffectors = async (gems) => {
 
     await Promise.all(gravityAnimationPromises)
 
-    result = checkForAMatch(gems)
+    result = checkForAMatch(gems, isSetup)
     await Promise.all(animateMatching(result))
 
     if (result.length > 0 || danglingCells.length > 0) {
-        await applyEffectors(gems)
+        await applyEffectors(gems, isSetup)
     }
 }
 
@@ -654,7 +714,19 @@ const animate = (lineIndexA, indexA, lineIndexB, indexB, animation) => {
         k.rect(gemSize, gemSize),
         k.color(color),
         k.outline(2, k.WHITE),
-        k.animate()
+        k.animate(),
+        k.z(2)
+    ])
+
+    obj.add([
+        k.pos(2, 2),
+        k.text(gems[lineIndexA][indexA].value.toString(), {
+            size: 12,
+            font: "numbers",
+            width: 32,
+            color: k.WHITE
+        }),
+        k.z(2)
     ])
 
     gems[lineIndexA][indexA].swapReplicaRef = obj
@@ -680,7 +752,7 @@ const animate = (lineIndexA, indexA, lineIndexB, indexB, animation) => {
 }
 
 const DISAPPEAR_ANIM_DURATION = 0.5;
-const checkForAMatch = (gems, isGamePlayMatch = false) => {
+const checkForAMatch = (gems, isGamePlayMatch = true) => {
     let result = []
     for (let lineIndex = 0; lineIndex < gems.length; lineIndex++) {
         for (let index = 0; index < gemPerLine; index++) {
@@ -690,7 +762,7 @@ const checkForAMatch = (gems, isGamePlayMatch = false) => {
                 console.log("Match 4 horizontal!")
 
                 if (isGamePlayMatch) {
-                    score += 800
+                    score += 4
                 }
 
                 let toBeRemoved = [
@@ -706,6 +778,10 @@ const checkForAMatch = (gems, isGamePlayMatch = false) => {
                     gems[lineIndex][index].oldData = { type: gems[lineIndex][index].type }
                     gems[lineIndex][index].type = undefined
 
+                    if (isGamePlayMatch) {
+                        score += gems[lineIndex][index].value
+                    }
+
                     result.push(gemIndices)
                 })
             }
@@ -716,7 +792,7 @@ const checkForAMatch = (gems, isGamePlayMatch = false) => {
                 console.log("Match 3 horizontal!")
 
                 if (isGamePlayMatch) {
-                    score += 300
+                    score += 3
                 }
 
                 let toBeRemoved = [
@@ -731,6 +807,10 @@ const checkForAMatch = (gems, isGamePlayMatch = false) => {
                     gems[lineIndex][index].oldData = { type: gems[lineIndex][index].type }
                     gems[lineIndex][index].type = undefined
 
+                    if (isGamePlayMatch) {
+                        score += gems[lineIndex][index].value
+                    }
+
                     result.push(gemIndices)
                 })
                 // console.table(gems)
@@ -741,7 +821,7 @@ const checkForAMatch = (gems, isGamePlayMatch = false) => {
                 gems[lineIndex + 2][index].type === gems[lineIndex][index].type && gems[lineIndex + 3][index].type === gems[lineIndex][index].type) {
                 console.log("Match 4 vertical!")
                 if (isGamePlayMatch) {
-                    score += 400
+                    score += 4
                 }
                 let toBeRemoved = [
                     [lineIndex, index],
@@ -756,6 +836,10 @@ const checkForAMatch = (gems, isGamePlayMatch = false) => {
                     gems[lineIndex][index].oldData = { type: gems[lineIndex][index].type }
                     gems[lineIndex][index].type = undefined
 
+                    if (isGamePlayMatch) {
+                        score += gems[lineIndex][index].value
+                    }
+
                     result.push(gemIndices)
                 })
             }
@@ -765,7 +849,7 @@ const checkForAMatch = (gems, isGamePlayMatch = false) => {
                 gems[lineIndex + 2][index].type === gems[lineIndex][index].type) {
                 console.log("Match 3 vertical!")
                 if (isGamePlayMatch) {
-                    score += 300
+                    score += 3
                 }
                 let toBeRemoved = [
                     [lineIndex, index],
@@ -778,6 +862,10 @@ const checkForAMatch = (gems, isGamePlayMatch = false) => {
                     const [lineIndex, index] = gemIndices
                     gems[lineIndex][index].oldData = { type: gems[lineIndex][index].type }
                     gems[lineIndex][index].type = undefined
+
+                    if (isGamePlayMatch) {
+                        score += gems[lineIndex][index].value
+                    }
 
                     result.push(gemIndices)
                 })
