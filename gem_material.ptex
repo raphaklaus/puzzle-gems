@@ -13,12 +13,6 @@
 			"to_port": 1
 		},
 		{
-			"from": "blend2",
-			"from_port": 0,
-			"to": "blend2_2",
-			"to_port": 0
-		},
-		{
 			"from": "shape_3",
 			"from_port": 0,
 			"to": "blend2_3",
@@ -91,12 +85,6 @@
 			"to_port": 2
 		},
 		{
-			"from": "math",
-			"from_port": 0,
-			"to": "math_2",
-			"to_port": 0
-		},
-		{
 			"from": "math_2",
 			"from_port": 0,
 			"to": "math_3",
@@ -107,12 +95,6 @@
 			"from_port": 0,
 			"to": "tones_map",
 			"to_port": 0
-		},
-		{
-			"from": "tones_map",
-			"from_port": 0,
-			"to": "blend2",
-			"to_port": 2
 		},
 		{
 			"from": "transform2",
@@ -149,6 +131,24 @@
 			"from_port": 0,
 			"to": "blend2",
 			"to_port": 1
+		},
+		{
+			"from": "tones_map",
+			"from_port": 0,
+			"to": "blend2",
+			"to_port": 2
+		},
+		{
+			"from": "math",
+			"from_port": 0,
+			"to": "math_2",
+			"to_port": 0
+		},
+		{
+			"from": "blend2",
+			"from_port": 0,
+			"to": "blend2_2",
+			"to_port": 0
 		}
 	],
 	"label": "Graph",
@@ -188,41 +188,6 @@
 			"type": "material"
 		},
 		{
-			"name": "shape",
-			"node_position": {
-				"x": 618.500061035156,
-				"y": 614.000061035156
-			},
-			"parameters": {
-				"edge": 0.1,
-				"radius": 0.8,
-				"shape": 1.0,
-				"sides": 4.0
-			},
-			"seed_int": 0,
-			"type": "shape"
-		},
-		{
-			"name": "bricks",
-			"node_position": {
-				"x": 123.255264282227,
-				"y": 658.4931640625
-			},
-			"parameters": {
-				"bevel": 0.1,
-				"columns": 3.0,
-				"corner": 0.3,
-				"mortar": 0.1,
-				"pattern": 0.0,
-				"repeat": 1.0,
-				"round": 0.0,
-				"row_offset": 0.5,
-				"rows": 6.0
-			},
-			"seed_int": 0,
-			"type": "bricks3"
-		},
-		{
 			"name": "uniform",
 			"node_position": {
 				"x": 156.255264282227,
@@ -231,9 +196,9 @@
 			"parameters": {
 				"color": {
 					"a": 1.0,
-					"b": 1.0,
-					"g": 1.0,
-					"r": 1.0,
+					"b": 0.0,
+					"g": 0.13623046875,
+					"r": 0.96875,
 					"type": "Color"
 				}
 			},
@@ -305,21 +270,6 @@
 			"type": "blend2"
 		},
 		{
-			"name": "shape_2",
-			"node_position": {
-				"x": 383.255279541016,
-				"y": 747.4931640625
-			},
-			"parameters": {
-				"edge": 0.0,
-				"radius": 0.8,
-				"shape": 1.0,
-				"sides": 4.0
-			},
-			"seed_int": 0,
-			"type": "shape"
-		},
-		{
 			"name": "shape_3",
 			"node_position": {
 				"x": 5.75524950027466,
@@ -347,24 +297,6 @@
 			},
 			"seed_int": 0,
 			"type": "blend2"
-		},
-		{
-			"name": "uniform_2",
-			"node_position": {
-				"x": 577.255310058594,
-				"y": 814.493225097656
-			},
-			"parameters": {
-				"color": {
-					"a": 1.0,
-					"b": 1.0,
-					"g": 1.0,
-					"r": 1.0,
-					"type": "Color"
-				}
-			},
-			"seed_int": 0,
-			"type": "uniform"
 		},
 		{
 			"name": "shape_4",
@@ -403,7 +335,7 @@
 			"generic_size": 1,
 			"name": "blend2_4",
 			"node_position": {
-				"x": 1306.77355957031,
+				"x": 1306.77368164063,
 				"y": 769.02978515625
 			},
 			"parameters": {
@@ -471,15 +403,15 @@
 			"generic_size": 1,
 			"name": "transform2",
 			"node_position": {
-				"x": -559.00830078125,
-				"y": -141.747467041016
+				"x": -530.408264160156,
+				"y": -184.6474609375
 			},
 			"parameters": {
 				"mode": 1.0,
 				"rotate": 0.0,
 				"scale_x": 1.0,
 				"scale_y": 1.0,
-				"translate_x": "$time* 0.2",
+				"translate_x": 0.0,
 				"translate_y": 0.0
 			},
 			"seed_int": 0,
@@ -564,21 +496,6 @@
 			},
 			"seed_int": 0,
 			"type": "gaussian_blur"
-		},
-		{
-			"name": "math",
-			"node_position": {
-				"x": -158.40251159668,
-				"y": 49.2082061767578
-			},
-			"parameters": {
-				"clamp": false,
-				"default_in1": "$time * 0.5",
-				"default_in2": 4.0,
-				"op": 16.0
-			},
-			"seed_int": 0,
-			"type": "math"
 		},
 		{
 			"name": "math_2",
@@ -689,8 +606,8 @@
 		{
 			"name": "image",
 			"node_position": {
-				"x": -878.030944824219,
-				"y": 292.172088623047
+				"x": -1679.93103027344,
+				"y": 350.472106933594
 			},
 			"parameters": {
 				"clamp": true,
@@ -704,8 +621,8 @@
 			"generic_size": 1,
 			"name": "transform2_2",
 			"node_position": {
-				"x": -582.734985351563,
-				"y": 288.378631591797
+				"x": -1384.63500976563,
+				"y": 346.678649902344
 			},
 			"parameters": {
 				"mode": 1,
@@ -721,8 +638,8 @@
 		{
 			"name": "math_4",
 			"node_position": {
-				"x": -961.386352539063,
-				"y": 516.411743164063
+				"x": -1763.28637695313,
+				"y": 574.711730957031
 			},
 			"parameters": {
 				"clamp": false,
@@ -737,8 +654,8 @@
 			"generic_size": 1,
 			"name": "tones_map_2",
 			"node_position": {
-				"x": -672.520935058594,
-				"y": 571.004943847656
+				"x": -1474.4208984375,
+				"y": 629.304931640625
 			},
 			"parameters": {
 				"in_max": 1.0,
@@ -748,6 +665,21 @@
 			},
 			"seed_int": 0,
 			"type": "tones_map"
+		},
+		{
+			"name": "math",
+			"node_position": {
+				"x": -158.40251159668,
+				"y": 49.2082061767578
+			},
+			"parameters": {
+				"clamp": false,
+				"default_in1": "$time * 0.5",
+				"default_in2": 4.0,
+				"op": 16.0
+			},
+			"seed_int": 0,
+			"type": "math"
 		}
 	],
 	"parameters": {},

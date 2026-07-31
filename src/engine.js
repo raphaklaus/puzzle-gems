@@ -65,7 +65,18 @@ k.scene("game over", () => {
 
 })
 
+const moveCursorUp = () => {
+    cursor.moveTo(cursor.pos.x, cursor.pos.y - gemSize)
+    if (cursor.pos.y < 0) {
+        cursor.pos.y = 0
+    }
+    cellY = cursor.pos.y / gemSize
+}
+
 k.scene("engine", async () => {
+    // To show FPS
+    // k.debug.inspect = true
+
     gemsContainer = k.add([
         k.pos(0, 0),
         k.animate(),
@@ -323,13 +334,49 @@ k.scene("engine", async () => {
         // logs issue
         // don't rise
 
+
+        const makeNextLineGemsVisible = (nextLine) => {
+            nextLine.forEach(gem => {
+                gem.invisible = false
+            })
+        }
+
+
+        const animateNextLine = (nextLine, callback) => {
+            return Promise.all(nextLine.map((gem, index) => {
+                let obj = gemsContainer.add([
+                    k.pos(index * gemSize, (maxGemsHeight) * gemSize),
+                    k.rect(gemSize, gemSize),
+                    k.color(typeToColorMap.get(gem.type)),
+                    k.outline(2, k.WHITE),
+                    k.animate()
+                ])
+
+                let prevPos = obj.pos.clone()
+
+                obj.animate("pos", [prevPos, k.vec2(prevPos.x, (maxGemsHeight - 1) * gemSize)], { duration: 0.5, easing: k.easings.easeInOutCirc, loops: 1 })
+
+                const { promise, resolve } = Promise.withResolvers()
+
+                obj.onAnimateFinished(() => {
+                    resolve()
+                    callback(nextLine)
+                    obj.destroy()
+                })
+
+                return promise
+            }))
+        }
+
+
+
         const riser = async () => {
-            nextLine = generateGemsLine(gems.length)
+            nextLine = generateGemsLine(gems.length, true)
             gems.push(nextLine)
             gems.shift()
+            moveCursorUp()
+            await animateNextLine(nextLine, makeNextLineGemsVisible)
             await applyEffectors(gems)
-            cursor.moveTo(cursor.pos.x, cursor.pos.y - gemSize)
-            cellY = cursor.pos.y / gemSize
         }
 
         if (isAllMovementDone()) {
@@ -344,10 +391,6 @@ k.scene("engine", async () => {
                 console.log("rise not call at all")
             }
         }
-
-
-
-
 
 
         // setTimeout(() => {
@@ -455,7 +498,7 @@ const setupGems = () => {
 
 }
 
-const generateGemsLine = (lineIndex) => {
+const generateGemsLine = (lineIndex, invisible = false) => {
     let line = []
     let possibleChoices = []
     typeToColorMap.forEach((value, key) => {
@@ -465,13 +508,13 @@ const generateGemsLine = (lineIndex) => {
     possibleChoices = k.shuffle(possibleChoices)
 
     for (let index = 0; index < gemPerLine; index++) {
-        line.push(generateGem(possibleChoices, lineIndex, index))
+        line.push(generateGem(possibleChoices, lineIndex, index, invisible))
     }
 
     return line
 }
 
-const generateGem = (possibleChoices, lineIndex, index) => {
+const generateGem = (possibleChoices, lineIndex, index, invisible = false) => {
     let type
 
     if (possibleChoices.length === 0) {
@@ -482,7 +525,7 @@ const generateGem = (possibleChoices, lineIndex, index) => {
 
     return {
         type,
-        ...defaultProperties()
+        ...defaultProperties(invisible)
     }
 }
 

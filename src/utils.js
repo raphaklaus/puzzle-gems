@@ -1,6 +1,6 @@
-export const defaultProperties = () => {
+export const defaultProperties = (invisible = false) => {
     return {
         swapping: false,
-        invisible: false
+        invisible
     }
 }
