@@ -9,6 +9,13 @@ const k = kaplay();
 k.loadRoot("./"); // A good idea for Itch.io publishing later
 
 k.loadSprite("border", "border.png")
+k.loadSprite("gem", "gem.png", {
+    sliceX: 240,
+    sliceY: 1,
+    anims: {
+        idle: { from: 0, to: 239, loop: true, speed: 120 }
+    }
+})
 
 const gemSize = 32;
 const gemPerLine = 6;
@@ -71,6 +78,14 @@ k.scene("engine", async () => {
 
     console.log('setup')
     console.table(gems)
+
+    k.add([
+        k.sprite("gem", { anim: "idle" }),
+        k.pos(0, 0),
+        // k.color(k.Color.fromHex("#0c720c"))
+    ])
+
+
 
     // nextLineContainer = k.add([
     //     k.pos(SCREEN_MID.x, k.height() - (2 * gemSize * SCALING)),
