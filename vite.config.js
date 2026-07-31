@@ -24,9 +24,9 @@ export default defineConfig({
         sourcemap: true,
         rollupOptions: {
             output: {
-                manualChunks: {
-                    kaplay: ["kaplay"],
-                },
+                // manualChunks: {
+                //     kaplay: ["kaplay"],
+                // },
             },
         },
     },
