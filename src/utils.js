@@ -26,5 +26,5 @@ export const saveHighScore = (currentScore) => {
 }
 
 export const getHighScore = () => {
-    return localStorage.getItem("highScore")
+    return localStorage.getItem("highScore") || 0
 }
