@@ -1,15 +1,17 @@
-import kaplay, { KAPLAYCtx } from "kaplay";
+import kaplay, { KAPLAYCtx, TimerController } from "kaplay";
 import { Vec2, GameObj } from "kaplay";
-import { defaultProperties, generateRandomNumber } from "./utils";
+import { defaultProperties, generateRandomNumber, sleep } from "./utils";
 import { Gems } from "./gems";
 import * as Constants from "./constants";
 import { Board } from "./board";
 import { Input } from "./input";
+import { GameType } from "./types";
 
 interface PlayerParams {
     gemsContainer: GameObj,
     k: KAPLAYCtx,
-    board: Board
+    board: Board,
+    gameType: GameType
 }
 
 export class Player {
@@ -26,11 +28,20 @@ export class Player {
     private board: Board;
     private topLine?: number = Constants.INITIAL_GEMS_HEIGHT
     private input: Input
+    private gameType: GameType
+    private timeController?: TimerController
+    private timerObj: GameObj
+    private newLineTimeModifier: number = 0
+    public isPaused = false
+    private static availableIds = ["P1", "P2"]
+    // public static 
+    public id: string
     // public controllerType: 'keyboard' | 'swipe';
 
 
     constructor(params: PlayerParams) {
         this.k = params.k
+        this.gameType = params.gameType
         this.cellX = 0;
         this.cellY = 0;
         this.score = 0;
@@ -49,16 +60,60 @@ export class Player {
         this.auxCursor = this.cursor.add([
             this.k.pos(Constants.GEM_SIZE, 0),
             this.k.sprite("border"),
-            // this.k.rect(gemSize, gemSize),
+            // this.k.rect(Constants.GEM_SIZE, Constants.GEM_SIZE),
             // this.k.outline(4, this.k.WHITE),
             // this.k.fill(false),
             this.k.z(4)
         ])
 
+
+        if (Player.availableIds.length === 0) {
+            throw new Error("Player ids run out, add more")
+        }
+
+        this.id = Player.availableIds.shift()!
+
+        let obj = this.k.add([this.id])
+
+        obj.on("won", () => {
+            console.log("won", this.id)
+            this.isPaused = true
+            this.gemsInvisible()
+            this.cursor.hidden = true
+            this.timeController?.cancel()
+        })
+
+        obj.on("lost", () => {
+            console.log("lost", this.id)
+            this.isPaused = true
+            this.gemsInvisible()
+            this.cursor.hidden = true
+            this.timeController?.cancel()
+        })
+
+        this.k.onKeyPress("q", () => {
+            if (this.id === "P1") {
+                console.table("VAI")
+                console.table(this.gems)
+            }
+        })
+
+        this.timerObj = this.k.add([this.k.timer()])
+
+        if (this.gameType === GameType.Survival) {
+            this.timeController = this.timerObj.loop(Constants.BASE_NEW_LINE_TIME, () => this.newLineRiser(), undefined, true)
+        }
+
         this.input = new Input({ k: this.k })
     }
 
     public update() {
+        if (this.isPaused) {
+
+            // TODO: Allow to interact with menu or do not update anything when showing results
+            return
+        }
+
         this.move()
         this.actions()
     }
@@ -115,8 +170,8 @@ export class Player {
             //     return
             // }
 
-            // let lineIndexAux = (cursor.pos.y + (gemSize * auxCursorDir.y)) / gemSize
-            // let indexAux = (cursor.pos.x + (gemSize * auxCursorDir.x)) / gemSize
+            // let lineIndexAux = (cursor.pos.y + (Constants.GEM_SIZE * auxCursorDir.y)) / Constants.GEM_SIZE
+            // let indexAux = (cursor.pos.x + (Constants.GEM_SIZE * auxCursorDir.x)) / Constants.GEM_SIZE
 
             // console.log("lineIndexAux", lineIndexAux)
             // console.log("indexAux", indexAux)
@@ -127,7 +182,15 @@ export class Player {
         }
     }
 
-    public actions() {
+    private moveCursorUp() {
+        this.cursor.moveTo(this.cursor.pos.x, this.cursor.pos.y - Constants.GEM_SIZE)
+        if (this.cursor.pos.y < 0) {
+            this.cursor.pos.y = 0
+        }
+        this.cellY = this.cursor.pos.y / Constants.GEM_SIZE
+    }
+
+    public async actions() {
         // TODO: actions logic
         // Example: swap gems, rotate, push new lines
 
@@ -180,8 +243,62 @@ export class Player {
             this.auxDirection.y = Math.round(this.auxDirection.y)
             this.auxCursor.moveTo(this.k.vec2(this.auxDirection.x * Constants.GEM_SIZE, this.auxDirection.y * Constants.GEM_SIZE))
         }
+
+        if (this.input.isPressed("pushLineUp") && this.gameType === GameType.Time) {
+            await this.newLineRiser()
+        }
     }
 
+    private makeNextLineGemsVisible(nextLine: Gems[]) {
+        nextLine.forEach(gem => {
+            gem.invisible = false
+        })
+    }
+
+    private gemsInvisible() {
+        this.gems.flat().forEach(gem => {
+            gem.invisible = true
+        })
+    }
+
+    private async riser() {
+        let nextLine = this.board.generateGemsLine(true)
+        this.gems.push(nextLine)
+        this.gems.shift()
+        this.moveCursorUp()
+        await this.board.animateNextLine(nextLine, this.makeNextLineGemsVisible)
+        await this.applyEffectors(false)
+        this.topLine = this.getTopLine()
+        if (this.gemsReachedTop()) {
+            this.k.trigger("results", "global", this.board)
+        }
+    }
+
+    private async newLineRiser() {
+        if (this.gameType === GameType.Survival && !this.isPaused) {
+            console.trace()
+            this.timeController?.cancel()
+            this.newLineTimeModifier -= 0.5
+            this.timeController = this.timerObj.loop(Math.max(Constants.BASE_NEW_LINE_TIME + this.newLineTimeModifier, 2), () => this.newLineRiser(), undefined, true)
+
+            if (this.isAllMovementDone()) {
+                console.log("rise on first")
+                await this.riser()
+            } else {
+                await sleep(1000)
+                if (this.isAllMovementDone()) {
+                    console.log("rise on second")
+                    await this.riser()
+                } else {
+                    console.log("rise not call at all")
+                }
+            }
+        }
+    }
+
+    private isAllMovementDone() {
+        return this.gems.flat().every(gem => gem.swapping === false)
+    }
 
     private isOutOfBounds() {
         let maxX = this.auxDirection.x > 0 ? Constants.GEM_PER_LINE - 2 : Constants.GEM_PER_LINE - 1
@@ -212,6 +329,10 @@ export class Player {
     }
 
     public async applyEffectors(isSetup = false) {
+        if (this.isPaused) {
+            return
+        }
+
         console.log("APPLY EFFECTORS")
         let result = this.checkForAMatch(isSetup)
 
@@ -243,11 +364,19 @@ export class Player {
         }
     }
 
-    swap = (lineIndexA: number, indexA: number, lineIndexB: number, indexB: number) => {
+    swap(lineIndexA: number, indexA: number, lineIndexB: number, indexB: number) {
         [this.gems[lineIndexA][indexA], this.gems[lineIndexB][indexB]] = [this.gems[lineIndexB][indexB], this.gems[lineIndexA][indexA]]
     }
 
-    gravity = () => {
+    private expandGrid() {
+        for (let i = Constants.MAX_GEMS_HEIGHT; i < Constants.MAX_GEMS_HEIGHT * 2; i++) {
+            for (let j = 0; i < Constants.GEM_PER_LINE; i++) {
+                this.gems[i][j] = { type: undefined, ...defaultProperties() }
+            }
+        }
+    }
+
+    gravity() {
         console.log("gravity called")
         let result = []
         // console.table(gems)
@@ -420,7 +549,7 @@ export class Player {
             }
         }
 
-        this.topLine = this.getTopLine()
+        // this.topLine = this.getTopLine()
 
         return result
     }

@@ -28,3 +28,9 @@ export const saveHighScore = (currentScore) => {
 export const getHighScore = () => {
     return localStorage.getItem("highScore") || 0
 }
+
+export const sleep = (ms: number) => {
+    return new Promise((resolve, reject) => {
+        setTimeout(resolve, ms)
+    })
+}

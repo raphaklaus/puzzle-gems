@@ -5,7 +5,7 @@ import { defaultProperties, generateRandomNumber, getHighScore, setupLocalStorag
 // import * as Engine from "./engine";
 import { Board } from "./board";
 import { Player } from "./player";
-import { Layout, PlayingMode } from "./types";
+import { GameType, Layout, PlayingMode } from "./types";
 import * as Constants from './constants'
 
 const k = kaplay({ letterbox: true, width: 1920, height: 1080 });
@@ -41,29 +41,55 @@ let highScore = getHighScore()
 // })
 
 interface SceneParams {
-    playingMode: PlayingMode
+    playingMode: PlayingMode,
+    gameType: GameType
 }
 
+
 k.scene("1p", async (params: SceneParams) => {
+    const level = k.add(["global"])
     // k.debug.inspect = true
     let boards: Board[] = []
 
     if (params.playingMode === PlayingMode.Versus2P) {
         boards = [
-            new Board({ k: k, pos: k.vec2(0, 0) }),
-            new Board({ k: k, pos: k.vec2(k.width() - (Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING), 0) })
+            new Board({ k: k, pos: k.vec2(0, 0), gameType: params.gameType }),
+            new Board({ k: k, pos: k.vec2(k.width() - (Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING), 0), gameType: params.gameType })
         ]
     }
+
+    k.on("results", "global", (_obj: GameObj, args: any[]) => {
+        boards.forEach(board => {
+            const losingBoard = args[0] as Board
+            console.log("eta losing", losingBoard)
+            console.log("eta board", board)
+            if (losingBoard.player.id === board.player.id) {
+                k.trigger("lost", board.player.id)
+                board.gemsContainer.add([
+                    k.text(`${losingBoard.player.id} lost`, { size: 24 }),
+                    k.pos(0, 0)
+                ])
+            } else {
+                k.trigger("won", board.player.id)
+                board.gemsContainer.add([
+                    k.text(`${board.player.id} won`, { size: 24 }),
+                    k.pos(k.vec2(0, 0))
+                ])
+            }
+            board.showResults()
+        })
+    })
 
     k.onUpdate(() => {
         boards.forEach(board => {
             board.update()
-            if (board.player.gemsReachedTop()) {
-                k.go("game over")
-            }
+            // if (board.player.gemsReachedTop()) {
+            // board.showResults()
+            // k.go("game over")
+            // }
         })
     })
 
 })
 
-k.go("1p", { playingMode: PlayingMode.Versus2P })
+k.go("1p", { playingMode: PlayingMode.Versus2P, gameType: GameType.Survival })

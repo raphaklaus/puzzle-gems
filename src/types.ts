@@ -4,8 +4,8 @@ export enum Layout {
 }
 
 export enum GameType {
-    Countdown,
-    LinesUp
+    Survival,
+    Time
 }
 
 export enum PlayingMode {

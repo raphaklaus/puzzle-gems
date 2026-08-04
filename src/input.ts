@@ -18,17 +18,20 @@ interface InputParams {
 }
 
 export class Input {
+    static playersCount = 0
     private mapping: InputMap
     private k: KAPLAYCtx
     private gamePad?: KGamepad
 
+    static registeredGamePadIndices: number[] = []
+
     static gamePadMappings: InputMap = {
-        up: "north",
-        down: "south",
-        left: "west",
-        right: "east",
-        swap: "dpad-right",
-        pushLineUp: "dpad-up",
+        up: "dpad-up",
+        down: "dpad-down",
+        left: "dpad-left",
+        right: "dpad-right",
+        swap: "east",
+        pushLineUp: "north",
         accept: "start",
         rotateCW: "ltrigger",
         rotateCCW: "rtrigger"
@@ -58,6 +61,7 @@ export class Input {
     }]
 
     constructor(params: InputParams) {
+        Input.playersCount++
         this.k = params.k
 
         if (Input.keyboardMappings.length === 0) {
@@ -67,18 +71,26 @@ export class Input {
         this.mapping = Input.keyboardMappings.shift()!
 
         this.k.onGamepadConnect((gp) => {
-            this.gamePad = gp
-            Input.keyboardMappings.push({ ...this.mapping })
-            this.mapping = Input.gamePadMappings
+            if (!this.gamePad && !Input.registeredGamePadIndices.includes(gp.index)) {
+                Input.registeredGamePadIndices.push(gp.index)
+                this.gamePad = gp
+                Input.keyboardMappings.push({ ...this.mapping })
+                this.mapping = Input.gamePadMappings
+            }
         })
 
         this.k.onGamepadDisconnect((gp) => {
-            this.gamePad = undefined
-            if (Input.keyboardMappings.length === 0) {
-                throw new Error("Mapping is empty, add more")
-            }
+            if (this.gamePad?.index === gp.index) {
+                this.gamePad = undefined
+                if (Input.keyboardMappings.length === 0) {
+                    throw new Error("Mapping is empty, add more")
+                }
 
-            this.mapping = Input.keyboardMappings.shift()!
+                let foundIndex = Input.registeredGamePadIndices.indexOf(gp.index)
+                Input.registeredGamePadIndices.splice(foundIndex, 1)
+
+                this.mapping = Input.keyboardMappings.shift()!
+            }
         })
     }
 

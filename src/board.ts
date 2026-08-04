@@ -1,9 +1,9 @@
 import kaplay, { EaseFuncs, Game, GameObj, KAPLAYCtx, Vec2 } from "kaplay";
 import { Gems } from "./gems";
 import * as Constants from "./constants";
-import { Layout } from "./types";
+import { GameType, Layout } from "./types";
 import { Player } from "./player";
-import { defaultProperties } from "./utils";
+import { defaultProperties, sleep } from "./utils";
 
 const typeToColorMap = new Map()
 
@@ -11,15 +11,18 @@ const typeToColorMap = new Map()
 interface BoardParams {
     k: KAPLAYCtx,
     // layout: Layout
-    pos: Vec2
+    pos: Vec2,
+    gameType: GameType
 }
 
 export class Board {
-    private gemsContainer: GameObj
+    public gemsContainer: GameObj
     private k: KAPLAYCtx
     public player: Player
+    private gameType
     constructor(params: BoardParams) {
         this.k = params.k;
+        this.gameType = params.gameType
 
         typeToColorMap.set(0, this.k.Color.fromHex("#a6ffa7"))
         typeToColorMap.set(1, this.k.Color.fromHex("#ff3d3d"))
@@ -33,7 +36,7 @@ export class Board {
             this.k.animate(),
         ])
 
-        this.player = new Player({ gemsContainer: this.gemsContainer, k: this.k, board: this })
+        this.player = new Player({ gemsContainer: this.gemsContainer, k: this.k, board: this, gameType: this.gameType })
 
         this.gemsContainer.moveTo(params.pos)
 
@@ -150,6 +153,54 @@ export class Board {
         }
     }
 
+    public async showResults() {
+        let timer = this.k.add([this.k.timer()])
+        this.player.gems.forEach((gemLine, lineIndex) => {
+            gemLine.forEach((gems, index) => {
+                if (gems.type === undefined) {
+                    return
+                }
+
+                let x = Constants.GEM_SIZE * index
+                let y = Constants.GEM_SIZE * lineIndex
+
+                let color = typeToColorMap.get(this.player.gems[lineIndex][index].type)
+
+                let obj = this.gemsContainer.add([
+                    this.k.pos(x, y),
+                    this.k.rect(Constants.GEM_SIZE, Constants.GEM_SIZE),
+                    this.k.color(color),
+                    this.k.outline(2, this.k.WHITE),
+                    this.k.animate(),
+                    this.k.z(2)
+                ])
+
+                obj.add([
+                    this.k.pos(2, 2),
+                    this.k.text(this.player.gems[lineIndex][index].value.toString(), {
+                        size: 12,
+                        font: "numbers",
+                        width: 32,
+                        // color: this.k.WHITE
+                    }),
+                    this.k.z(2)
+                ])
+
+                // obj.unanimateAll()
+
+                timer.wait((1 * (index / 4)) + (lineIndex / 3.5), () => {
+                    obj.animation.seek(0)
+                    obj.animate("pos", [this.k.vec2(x, y), this.k.vec2(x, this.k.height() + Constants.GEM_SIZE)], { duration: 0.75, loops: 1, easing: this.k.easings.easeInCubic })
+                })
+
+
+                // await sleep(50)
+                // this.player.swap(lineIndex, index, Constants.MAX_GEMS_HEIGHT - 1, Constants.GEM_PER_LINE - 1)
+                // await this.animate(lineIndex, index, Constants.MAX_GEMS_HEIGHT, Constants.GEM_PER_LINE, { duration: 4, easing: this.k.easings.easeInCirc })
+            })
+        })
+    }
+
 
     animateMatching(matchedGemsIndices: number[][], isSetup: boolean) {
         return isSetup ? [] : matchedGemsIndices
@@ -220,18 +271,12 @@ export class Board {
 
         const reset = () => {
             if (this.player.gems[lineIndexB][indexB].invisible === false || this.player.gems[lineIndexB][indexB].swapping === false) {
-                console.trace()
-                console.log("DEU RUIM,  lineIndex", lineIndexB)
-                console.log("DEU RUIM,  index", indexB)
-                console.log("DEU RUIM, swapping", this.player.gems[lineIndexB][indexB].swapping)
-                console.log("DEU RUIM, invisible", this.player.gems[lineIndexB][indexB].invisible)
-                console.table(this.player.gems)
             }
             // It only works because by the time the animation is finished, the swap has already inverted the order.
             // This is to allow the swap on the array to happen first and have fast cells swapping.
             console.log("reset, after lineIndex", lineIndexB)
             console.log("reset, after index", indexB)
-            this.player.gems[lineIndexB][indexB].invisible = false
+            this.player.gems[lineIndexB][indexB].invisible = this.player.isPaused
             this.player.gems[lineIndexB][indexB].swapping = false
             this.player.gems[lineIndexB][indexB].swapReplicaRef = undefined
         }
@@ -287,12 +332,49 @@ export class Board {
 
         obj.animate("pos", [this.k.vec2(x, y), this.k.vec2(destX, destY)], { duration, loops: 1, easing })
 
-
         obj.onAnimateFinished(() => {
             reset()
             resolve(obj)
         })
 
         return promise
+    }
+
+    public animateNextLine(nextLine: Gems[], callback: (nextLine: Gems[]) => void) {
+        return Promise.all(nextLine.map((gem, index) => {
+            let obj = this.gemsContainer.add([
+                this.k.pos(index * Constants.GEM_SIZE, (Constants.MAX_GEMS_HEIGHT) * Constants.GEM_SIZE),
+                this.k.rect(Constants.GEM_SIZE, Constants.GEM_SIZE),
+                this.k.color(typeToColorMap.get(gem.type)),
+                this.k.outline(2, this.k.WHITE),
+                this.k.animate(),
+                this.k.z(2)
+            ])
+
+            obj.add([
+                this.k.pos(2, 2),
+                this.k.text(gem.value.toString(), {
+                    size: 12,
+                    width: 32,
+                    font: "numbers",
+                    // color: this.k.WHITE
+                }),
+                this.k.z(2)
+            ])
+
+            let prevPos = obj.pos.clone()
+
+            obj.animate("pos", [prevPos, this.k.vec2(prevPos.x, (Constants.MAX_GEMS_HEIGHT - 1) * Constants.GEM_SIZE)], { duration: 0.5, easing: this.k.easings.easeInOutCirc, loops: 1 })
+
+            const { promise, resolve } = Promise.withResolvers()
+
+            obj.onAnimateFinished(() => {
+                resolve(obj)
+                callback(nextLine)
+                obj.destroy()
+            })
+
+            return promise
+        }))
     }
 }
