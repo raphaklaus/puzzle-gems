@@ -1,4 +1,4 @@
-import kaplay, { EaseFuncs, Game, GameObj, KAPLAYCtx } from "kaplay";
+import kaplay, { EaseFuncs, Game, GameObj, KAPLAYCtx, Vec2 } from "kaplay";
 import { Gems } from "./gems";
 import * as Constants from "./constants";
 import { Layout } from "./types";
@@ -10,17 +10,16 @@ const typeToColorMap = new Map()
 
 interface BoardParams {
     k: KAPLAYCtx,
-    layout: Layout
+    // layout: Layout
+    pos: Vec2
 }
 
 export class Board {
     private gemsContainer: GameObj
     private k: KAPLAYCtx
-    private layout: Layout
     public player: Player
     constructor(params: BoardParams) {
         this.k = params.k;
-        this.layout = params.layout
 
         typeToColorMap.set(0, this.k.Color.fromHex("#a6ffa7"))
         typeToColorMap.set(1, this.k.Color.fromHex("#ff3d3d"))
@@ -36,11 +35,13 @@ export class Board {
 
         this.player = new Player({ gemsContainer: this.gemsContainer, k: this.k, board: this })
 
-        if (this.layout === Layout.Center) {
-            this.gemsContainer.moveTo(Constants.SCREEN_MID(this.k))
-        } else if (this.layout === Layout.SideBySide) {
-            throw new Error("Layout not defined yet!")
-        }
+        this.gemsContainer.moveTo(params.pos)
+
+
+        // if (this.layout === Layout.Center) {
+        // } else if (this.layout === Layout.SideBySide) {
+        //     throw new Error("Layout not defined yet!")
+        // }
 
         // Register handlers
         this.generateGrid()
