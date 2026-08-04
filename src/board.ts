@@ -51,6 +51,10 @@ export class Board {
         })
     }
 
+    public update() {
+        this.player.update()
+    }
+
     generateGrid() {
         for (let lineIndex = 0; lineIndex < Constants.MAX_GEMS_HEIGHT + Constants.INITIAL_GEMS_HEIGHT; lineIndex++) {
             for (let index = 0; index < Constants.GEM_PER_LINE; index++) {
@@ -291,5 +295,4 @@ export class Board {
 
         return promise
     }
-
 }

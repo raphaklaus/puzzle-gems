@@ -4,6 +4,7 @@ import { defaultProperties, generateRandomNumber } from "./utils";
 import { Gems } from "./gems";
 import * as Constants from "./constants";
 import { Board } from "./board";
+import { Input } from "./input";
 
 interface PlayerParams {
     gemsContainer: GameObj,
@@ -24,6 +25,7 @@ export class Player {
     private gemsContainer: GameObj;
     private board: Board;
     private topLine?: number = Constants.INITIAL_GEMS_HEIGHT
+    private input: Input
     // public controllerType: 'keyboard' | 'swipe';
 
 
@@ -53,51 +55,51 @@ export class Player {
             this.k.z(4)
         ])
 
-        // Register handlers
+        this.input = new Input({ k: this.k })
+    }
+
+    public update() {
         this.move()
         this.actions()
     }
 
-    public move() {
-        this.k.onKeyPress("left", () => {
+    public async move() {
+        if (this.input.isPressed("left")) {
             // console.log("cellY", this.cellX)
             this.direction = this.k.vec2(-1, 0)
             if (!this.isOutOfBounds()) {
                 this.cursor.moveTo((this.cursor.pos.x - Constants.GEM_SIZE), this.cursor.pos.y)
                 this.cellX = this.cursor.pos.x / Constants.GEM_SIZE;
             }
+        }
 
-        })
-
-        this.k.onKeyPress("right", () => {
-
+        if (this.input.isPressed("right")) {
             // console.log("cellY", this.cellX)
             this.direction = this.k.vec2(1, 0)
             if (!this.isOutOfBounds()) {
                 this.cursor.moveTo((this.cursor.pos.x + Constants.GEM_SIZE), this.cursor.pos.y)
                 this.cellX = this.cursor.pos.x / Constants.GEM_SIZE;
             }
+        }
 
-        })
-
-        this.k.onKeyPress("up", () => {
+        if (this.input.isPressed("up")) {
             this.direction = this.k.vec2(0, -1)
             if (!this.isOutOfBounds()) {
                 this.cursor.moveTo(this.cursor.pos.x, this.cursor.pos.y - Constants.GEM_SIZE)
                 this.cellY = this.cursor.pos.y / Constants.GEM_SIZE
             }
 
-        })
+        }
 
-        this.k.onKeyPress("down", () => {
+        if (this.input.isPressed("down")) {
             this.direction = this.k.vec2(0, 1)
             if (!this.isOutOfBounds()) {
                 this.cursor.moveTo(this.cursor.pos.x, this.cursor.pos.y + Constants.GEM_SIZE)
                 this.cellY = this.cursor.pos.y / Constants.GEM_SIZE
             }
-        })
+        }
 
-        this.k.onKeyPress("space", async () => {
+        if (this.input.isPressed("swap")) {
             // console.log("TIMER IS", controller.timeLeft)
             let lineIndex = this.cellY
             let index = this.cellX
@@ -120,9 +122,9 @@ export class Player {
             // console.log("indexAux", indexAux)
 
 
-            await this.board.updateGemLocation(lineIndex, index, lineIndexAux, indexAux, { duration: Constants.ANIMATION_SWAPPING_DURATION, easing: this.k.easings.easeOutCirc });
+            await this.board.updateGemLocation(lineIndex, index, lineIndexAux, indexAux, { duration: Constants.ANIMATION_SWAPPING_DURATION, easing: this.k.easings.easeOutCirc }, false);
             await this.applyEffectors()
-        })
+        }
     }
 
     public actions() {
@@ -131,7 +133,7 @@ export class Player {
 
 
         // Counter clock-wise
-        this.k.onKeyPress("a", () => {
+        if (this.input.isPressed("rotateCW")) {
             if (this.cellY === this.gems.length - 1 && this.auxDirection.x < 0) {
                 return
             }
@@ -152,11 +154,11 @@ export class Player {
             this.auxDirection.x = Math.round(this.auxDirection.x)
             this.auxDirection.y = Math.round(this.auxDirection.y)
             this.auxCursor.moveTo(this.k.vec2(this.auxDirection.x * Constants.GEM_SIZE, this.auxDirection.y * Constants.GEM_SIZE))
-        })
+        }
 
 
         // Clock-wise
-        this.k.onKeyPress("d", () => {
+        if (this.input.isPressed("rotateCCW")) {
             if (this.cellY === this.gems.length - 1 && this.auxDirection.x > 0) {
                 return
             }
@@ -177,7 +179,7 @@ export class Player {
             this.auxDirection.x = Math.round(this.auxDirection.x)
             this.auxDirection.y = Math.round(this.auxDirection.y)
             this.auxCursor.moveTo(this.k.vec2(this.auxDirection.x * Constants.GEM_SIZE, this.auxDirection.y * Constants.GEM_SIZE))
-        })
+        }
     }
 
 

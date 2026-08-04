@@ -57,6 +57,7 @@ k.scene("1p", async (params: SceneParams) => {
 
     k.onUpdate(() => {
         boards.forEach(board => {
+            board.update()
             if (board.player.gemsReachedTop()) {
                 k.go("game over")
             }
