@@ -34,6 +34,7 @@ export class Player {
     private newLineTimeModifier: number = 0
     public isPaused = false
     private static availableIds = ["P1", "P2"]
+    public status?: 'won' | 'tie' | 'lost' | 'playing'
     // public static 
     public id: string
     // public controllerType: 'keyboard' | 'swipe';
@@ -81,6 +82,7 @@ export class Player {
             this.gemsInvisible()
             this.cursor.hidden = true
             this.timeController?.cancel()
+            this.status = 'won'
         })
 
         obj.on("lost", () => {
@@ -89,6 +91,16 @@ export class Player {
             this.gemsInvisible()
             this.cursor.hidden = true
             this.timeController?.cancel()
+            this.status = 'lost'
+        })
+
+        obj.on("tie", () => {
+            console.log("tie", this.id)
+            this.isPaused = true
+            this.gemsInvisible()
+            this.cursor.hidden = true
+            this.timeController?.cancel()
+            this.status = 'tie'
         })
 
         this.k.onKeyPress("q", () => {
@@ -262,6 +274,10 @@ export class Player {
     }
 
     private async riser() {
+        if (this.isPaused) {
+            return
+        }
+
         let nextLine = this.board.generateGemsLine(true)
         this.gems.push(nextLine)
         this.gems.shift()
@@ -270,12 +286,12 @@ export class Player {
         await this.applyEffectors(false)
         this.topLine = this.getTopLine()
         if (this.gemsReachedTop()) {
-            this.k.trigger("results", "global", this.board)
+            this.k.trigger("reachedTop", "endGame", this.board)
         }
     }
 
     private async newLineRiser() {
-        if (this.gameType === GameType.Survival && !this.isPaused) {
+        if (this.gameType === GameType.Survival) {
             console.trace()
             this.timeController?.cancel()
             this.newLineTimeModifier -= 0.5
@@ -428,7 +444,7 @@ export class Player {
         return result
     }
 
-    checkForAMatch(isGamePlayMatch = true) {
+    checkForAMatch(isSetup = false) {
         let result: number[][] = []
         for (let lineIndex = 0; lineIndex < this.gems.length; lineIndex++) {
             for (let index = 0; index < Constants.GEM_PER_LINE; index++) {
@@ -437,7 +453,7 @@ export class Player {
                     this.gems[lineIndex][index + 2].type === this.gems[lineIndex][index].type && this.gems[lineIndex][index + 3].type === this.gems[lineIndex][index].type) {
                     console.log("Match 4 horizontal!")
 
-                    if (isGamePlayMatch) {
+                    if (!isSetup) {
                         this.score += 4
                     }
 
@@ -454,7 +470,7 @@ export class Player {
                         this.gems[lineIndex][index].oldData = { type: this.gems[lineIndex][index].type }
                         this.gems[lineIndex][index].type = undefined
 
-                        if (isGamePlayMatch) {
+                        if (!isSetup) {
                             this.score += this.gems[lineIndex][index].value
                         }
 
@@ -467,7 +483,7 @@ export class Player {
                     this.gems[lineIndex][index + 2].type === this.gems[lineIndex][index].type) {
                     console.log("Match 3 horizontal!")
 
-                    if (isGamePlayMatch) {
+                    if (!isSetup) {
                         this.score += 3
                     }
 
@@ -483,7 +499,7 @@ export class Player {
                         this.gems[lineIndex][index].oldData = { type: this.gems[lineIndex][index].type }
                         this.gems[lineIndex][index].type = undefined
 
-                        if (isGamePlayMatch) {
+                        if (!isSetup) {
                             this.score += this.gems[lineIndex][index].value
                         }
 
@@ -496,7 +512,7 @@ export class Player {
                 if (lineIndex <= (this.gems.length - 4) && this.gems[lineIndex][index].type !== undefined && this.gems[lineIndex][index].type === this.gems[lineIndex + 1][index].type &&
                     this.gems[lineIndex + 2][index].type === this.gems[lineIndex][index].type && this.gems[lineIndex + 3][index].type === this.gems[lineIndex][index].type) {
                     console.log("Match 4 vertical!")
-                    if (isGamePlayMatch) {
+                    if (!isSetup) {
                         this.score += 4
                     }
                     let toBeRemoved = [
@@ -512,7 +528,7 @@ export class Player {
                         this.gems[lineIndex][index].oldData = { type: this.gems[lineIndex][index].type }
                         this.gems[lineIndex][index].type = undefined
 
-                        if (isGamePlayMatch) {
+                        if (!isSetup) {
                             this.score += this.gems[lineIndex][index].value
                         }
 
@@ -524,7 +540,7 @@ export class Player {
                 if (lineIndex <= (this.gems.length - 3) && this.gems[lineIndex][index].type !== undefined && this.gems[lineIndex][index].type === this.gems[lineIndex + 1][index].type &&
                     this.gems[lineIndex + 2][index].type === this.gems[lineIndex][index].type) {
                     console.log("Match 3 vertical!")
-                    if (isGamePlayMatch) {
+                    if (!isSetup) {
                         this.score += 3
                     }
                     let toBeRemoved = [
@@ -539,7 +555,7 @@ export class Player {
                         this.gems[lineIndex][index].oldData = { type: this.gems[lineIndex][index].type }
                         this.gems[lineIndex][index].type = undefined
 
-                        if (isGamePlayMatch) {
+                        if (!isSetup) {
                             this.score += this.gems[lineIndex][index].value
                         }
 
