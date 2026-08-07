@@ -7,7 +7,6 @@ import { defaultProperties, sleep } from "./utils";
 
 const typeToColorMap = new Map()
 
-
 interface BoardParams {
     k: KAPLAYCtx,
     // layout: Layout
@@ -29,6 +28,7 @@ export class Board {
         typeToColorMap.set(2, this.k.Color.fromHex("#5a83ff"))
         typeToColorMap.set(3, this.k.Color.fromHex("#d9b93b"))
         typeToColorMap.set(4, this.k.Color.fromHex("#f08eff"))
+
 
         this.gemsContainer = this.k.add([
             this.k.pos(0, 0),
@@ -59,7 +59,7 @@ export class Board {
     }
 
     generateGrid() {
-        for (let lineIndex = 0; lineIndex < Constants.MAX_GEMS_HEIGHT + Constants.INITIAL_GEMS_HEIGHT; lineIndex++) {
+        for (let lineIndex = 0; lineIndex < Constants.MAX_GEMS_HEIGHT; lineIndex++) {
             for (let index = 0; index < Constants.GEM_PER_LINE; index++) {
                 let obj = this.gemsContainer.add(this.makeGridObj((lineIndex + index) % 2))
 
@@ -89,7 +89,13 @@ export class Board {
 
                     let type = this.player.gems[lineIndex][index].type
 
-                    let color = typeToColorMap.get(type) ?? this.k.color(0, 0, 0)
+                    let color
+
+                    if (type === 99) {
+                        color = this.k.color(0, 0, 0)
+                    } else {
+                        color = typeToColorMap.get(type)
+                    }
 
                     this.k.drawRect({
                         width: Constants.GEM_SIZE,
@@ -153,6 +159,16 @@ export class Board {
         }
     }
 
+    public destroy99(index: number) {
+        this.player.gems[Constants.MAX_GEMS_HEIGHT - 1][index].invisible = true
+        this.player.gems[Constants.MAX_GEMS_HEIGHT - 1][index].oldData = { type: this.player.gems[Constants.MAX_GEMS_HEIGHT - 1][index].type }
+        this.player.gems[Constants.MAX_GEMS_HEIGHT - 1][index].type = undefined
+
+        this.animateMatching([
+            [Constants.MAX_GEMS_HEIGHT - 1, index]
+        ], false)
+    }
+
     public async showResults() {
         let timer = this.k.add([this.k.timer()])
         this.player.gems.forEach((gemLine, lineIndex) => {
@@ -164,7 +180,13 @@ export class Board {
                 let x = Constants.GEM_SIZE * index
                 let y = Constants.GEM_SIZE * lineIndex
 
-                let color = typeToColorMap.get(this.player.gems[lineIndex][index].type)
+                let color
+                if (this.player.gems[lineIndex][index].type === 99) {
+                    color = "#000000"
+                } else {
+                    color = typeToColorMap.get(this.player.gems[lineIndex][index].type)
+                }
+
 
                 let obj = this.gemsContainer.add([
                     this.k.pos(x, y),
@@ -216,7 +238,17 @@ export class Board {
                 let x = Constants.GEM_SIZE * index
                 let y = Constants.GEM_SIZE * lineIndex
 
-                let color = typeToColorMap.get(this.player.gems[lineIndex][index].oldData?.type)
+                let color
+
+                if (this.player.gems[lineIndex][index].oldData?.type === 99) {
+                    color = "#000000"
+                } else {
+                    color = typeToColorMap.get(this.player.gems[lineIndex][index].oldData?.type)
+                }
+
+                console.log("matched", color)
+                console.log("matched2", this.player.gems[lineIndex][index].oldData?.type)
+
 
                 let obj = this.player.gems[lineIndex][index].swapReplicaRef || this.gemsContainer.add([
                     this.k.pos(x, y),
@@ -239,20 +271,96 @@ export class Board {
             })
     }
 
-    public async updateGemLocation(lineIndexA: number, indexA: number, lineIndexB: number, indexB: number, animation: { duration: number, easing: any }, isSetup: boolean) {
-        let promises = isSetup ? [] : [
-            this.animate(lineIndexA, indexA, lineIndexB, indexB, animation),
-            this.animate(lineIndexB, indexB, lineIndexA, indexA, animation)
-        ]
+    private animateShake(lineIndexA: number, indexA: number, animation: { duration: number, easing: any, direction: number }) {
+        const { duration, easing } = animation
+        const { promise, resolve, reject } = Promise.withResolvers<GameObj>()
 
-        this.player.swap(lineIndexA, indexA, lineIndexB, indexB)
-        let results = await Promise.allSettled(promises)
-        results.forEach((result) => {
-            if (result.status === "fulfilled") {
-                result.value.destroy()
-            }
+
+        const reset = () => {
+            this.player.gems[lineIndexA][indexA].invisible = this.player.isPaused
+            this.player.gems[lineIndexA][indexA].swapReplicaRef = undefined
+        }
+
+        this.player.gems[lineIndexA][indexA].invisible = true
+
+        let x = Constants.GEM_SIZE * indexA
+        let y = Constants.GEM_SIZE * lineIndexA
+
+        let destX = x + (Constants.GEM_SIZE / 6 * animation.direction)
+        let destY = y
+
+        let color
+
+        if (this.player.gems[lineIndexA][indexA].type === 99) {
+            color = "#000000"
+        } else {
+            color = typeToColorMap.get(this.player.gems[lineIndexA][indexA].type)
+        }
+
+        let obj = this.player.gems[lineIndexA][indexA].swapReplicaRef || this.gemsContainer.add([
+            this.k.pos(x, y),
+            this.k.rect(Constants.GEM_SIZE, Constants.GEM_SIZE),
+            this.k.color(color),
+            this.k.outline(2, this.k.WHITE),
+            this.k.animate(),
+            this.k.z(2)
+        ])
+
+        obj.add([
+            this.k.pos(2, 2),
+            this.k.text(this.player.gems[lineIndexA][indexA].value.toString(), {
+                size: 12,
+                font: "numbers",
+                width: 32,
+                // color: this.k.WHITE
+            }),
+            this.k.z(2)
+        ])
+
+        this.player.gems[lineIndexA][indexA].swapReplicaRef = obj
+
+        // obj.unanimateAll()
+        obj.animation.seek(0)
+
+        obj.animate("pos", [this.k.vec2(x, y), this.k.vec2(destX, destY)], { duration, loops: 1, easing })
+
+        obj.onAnimateFinished(() => {
+            reset()
+            resolve(obj)
         })
 
+        return promise
+    }
+
+    public async updateGemLocation(lineIndexA: number, indexA: number, lineIndexB: number, indexB: number, animation: { duration: number, easing: any }, isSetup: boolean) {
+        if (this.player.gems[lineIndexA][indexA].type === 99 && this.player.gems[lineIndexB][indexB].type !== undefined || this.player.gems[lineIndexA][indexA].type !== undefined && this.player.gems[lineIndexB][indexB].type === 99) {
+            console.log("shake!")
+            let promises = isSetup ? [] : [
+                this.animateShake(lineIndexA, indexA, { duration: 1, easing: this.k.easings.easeInOutBounce, direction: 1 }),
+                this.animateShake(lineIndexB, indexB, { duration: 1, easing: this.k.easings.easeInOutBounce, direction: -1 }),
+            ]
+
+            let results = await Promise.allSettled(promises)
+            results.forEach((result) => {
+                if (result.status === "fulfilled") {
+                    result.value.destroy()
+                }
+            })
+        } else {
+            let promises = isSetup ? [] : [
+                this.animate(lineIndexA, indexA, lineIndexB, indexB, animation),
+                this.animate(lineIndexB, indexB, lineIndexA, indexA, animation)
+            ]
+
+            this.player.swap(lineIndexA, indexA, lineIndexB, indexB)
+            let results = await Promise.allSettled(promises)
+            results.forEach((result) => {
+                if (result.status === "fulfilled") {
+                    result.value.destroy()
+                }
+            })
+
+        }
     }
 
     private animate(lineIndexA: number, indexA: number, lineIndexB: number, indexB: number, animation: { duration: number, easing: any }) {
@@ -270,8 +378,8 @@ export class Board {
         console.log("reset, before index", indexB)
 
         const reset = () => {
-            if (this.player.gems[lineIndexB][indexB].invisible === false || this.player.gems[lineIndexB][indexB].swapping === false) {
-            }
+            // if (this.player.gems[lineIndexB][indexB].invisible === false || this.player.gems[lineIndexB][indexB].swapping === false) {
+            // }
             // It only works because by the time the animation is finished, the swap has already inverted the order.
             // This is to allow the swap on the array to happen first and have fast cells swapping.
             console.log("reset, after lineIndex", lineIndexB)
@@ -296,8 +404,13 @@ export class Board {
         let destX = Constants.GEM_SIZE * indexB
         let destY = Constants.GEM_SIZE * lineIndexB
 
-        let color = typeToColorMap.get(this.player.gems[lineIndexA][indexA].type)
+        let color
 
+        if (this.player.gems[lineIndexA][indexA].type === 99) {
+            color = "#000000"
+        } else {
+            color = typeToColorMap.get(this.player.gems[lineIndexA][indexA].type)
+        }
 
         // If color is undefined, it is an empty cell, so no need to animate anything
         // if (color === undefined) {

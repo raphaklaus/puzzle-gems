@@ -37,12 +37,15 @@ export class Player {
     public status?: 'won' | 'tie' | 'lost' | 'playing'
     // public static 
     public id: string
+    private obj: GameObj
+    private opponentId: string
     // public controllerType: 'keyboard' | 'swipe';
 
 
     constructor(params: PlayerParams) {
         this.k = params.k
         this.gameType = params.gameType
+        this.opponentId = undefined
         this.cellX = 0;
         this.cellY = 0;
         this.score = 0;
@@ -74,9 +77,14 @@ export class Player {
 
         this.id = Player.availableIds.shift()!
 
-        let obj = this.k.add([this.id])
+        this.obj = this.k.add([this.id])
 
-        obj.on("won", () => {
+        this.obj.on("configPlayers", (args: any[]) => {
+            this.opponentId = args[0] as string
+            console.log(`playerId: ${this.id} - opponentId: ${this.opponentId}`)
+        })
+
+        this.obj.on("won", () => {
             console.log("won", this.id)
             this.isPaused = true
             this.gemsInvisible()
@@ -85,7 +93,7 @@ export class Player {
             this.status = 'won'
         })
 
-        obj.on("lost", () => {
+        this.obj.on("lost", () => {
             console.log("lost", this.id)
             this.isPaused = true
             this.gemsInvisible()
@@ -94,13 +102,26 @@ export class Player {
             this.status = 'lost'
         })
 
-        obj.on("tie", () => {
+        this.obj.on("tie", () => {
             console.log("tie", this.id)
             this.isPaused = true
             this.gemsInvisible()
             this.cursor.hidden = true
             this.timeController?.cancel()
             this.status = 'tie'
+        })
+
+        console.log("this", this)
+
+        this.obj.on("receive-attack", (args: any[]) => {
+            if (this.isPaused) {
+                return
+            }
+
+            console.log("ATTACK!", this.id)
+            let gemsCount = args[0] as number
+
+            this.receiveAttack(gemsCount)
         })
 
         this.k.onKeyPress("q", () => {
@@ -119,6 +140,27 @@ export class Player {
         this.input = new Input({ k: this.k })
     }
 
+    public setOpponentId(playerId: string) {
+        this.opponentId = playerId
+    }
+
+    public async receiveAttack(_gemCount: number) {
+        console.log("receivedAttack")
+        // for (let i = 0; i < array.length; i++) {
+
+
+        // }
+        this.gems[0][1] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
+        this.gems[0][2] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
+        this.gems[0][4] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
+        await this.applyEffectors(false)
+        await sleep(700)
+        this.gems[0][0] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
+        this.gems[0][3] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
+        this.gems[0][5] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
+        await this.applyEffectors(false)
+    }
+
     public update() {
         if (this.isPaused) {
 
@@ -128,6 +170,19 @@ export class Player {
 
         this.move()
         this.actions()
+    }
+
+    private check99AtBottom() {
+        for (let i = 0; i < Constants.GEM_PER_LINE; i++) {
+            if (this.gems[Constants.MAX_GEMS_HEIGHT - 1][i].type === 99) {
+                this.board.destroy99(i)
+            }
+        }
+    }
+
+    private attack(gemsCount: number) {
+        console.log("pre-attack", this.opponentId)
+        this.k.trigger("receive-attack", this.opponentId, gemsCount)
     }
 
     public async move() {
@@ -295,7 +350,7 @@ export class Player {
             console.trace()
             this.timeController?.cancel()
             this.newLineTimeModifier -= 0.5
-            this.timeController = this.timerObj.loop(Math.max(Constants.BASE_NEW_LINE_TIME + this.newLineTimeModifier, 2), () => this.newLineRiser(), undefined, true)
+            this.timeController = this.timerObj.loop(Math.max(Constants.BASE_NEW_LINE_TIME + this.newLineTimeModifier, Constants.MIN_TIME_NEW_LINE), () => this.newLineRiser(), undefined, true)
 
             if (this.isAllMovementDone()) {
                 console.log("rise on first")
@@ -368,6 +423,8 @@ export class Player {
         })
 
         await Promise.all(gravityAnimationPromises)
+
+        this.check99AtBottom()
 
         result = this.checkForAMatch(isSetup)
 
@@ -448,6 +505,10 @@ export class Player {
         let result: number[][] = []
         for (let lineIndex = 0; lineIndex < this.gems.length; lineIndex++) {
             for (let index = 0; index < Constants.GEM_PER_LINE; index++) {
+                if (this.gems[lineIndex][index].type === 99) {
+                    continue
+                }
+
                 // Match 4 horizontal!
                 if (index <= (Constants.GEM_PER_LINE - 4) && this.gems[lineIndex][index].type !== undefined && this.gems[lineIndex][index].type === this.gems[lineIndex][index + 1].type &&
                     this.gems[lineIndex][index + 2].type === this.gems[lineIndex][index].type && this.gems[lineIndex][index + 3].type === this.gems[lineIndex][index].type) {
@@ -455,6 +516,7 @@ export class Player {
 
                     if (!isSetup) {
                         this.score += 4
+                        this.attack(4)
                     }
 
                     let toBeRemoved = [
@@ -485,6 +547,7 @@ export class Player {
 
                     if (!isSetup) {
                         this.score += 3
+                        // this.attack(3)
                     }
 
                     let toBeRemoved = [
@@ -514,6 +577,7 @@ export class Player {
                     console.log("Match 4 vertical!")
                     if (!isSetup) {
                         this.score += 4
+                        this.attack(4)
                     }
                     let toBeRemoved = [
                         [lineIndex, index],
@@ -542,6 +606,7 @@ export class Player {
                     console.log("Match 3 vertical!")
                     if (!isSetup) {
                         this.score += 3
+                        // this.attack(3)
                     }
                     let toBeRemoved = [
                         [lineIndex, index],

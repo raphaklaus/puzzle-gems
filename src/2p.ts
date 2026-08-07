@@ -47,8 +47,8 @@ interface SceneParams {
 }
 
 
-k.scene("1p", async (params: SceneParams) => {
-    const level = k.add(["endGame"])
+k.scene("2p", async (params: SceneParams) => {
+    k.add(["endGame"])
     // k.debug.inspect = true
     let boards: Board[] = []
     let scores: GameObj[] = []
@@ -59,14 +59,17 @@ k.scene("1p", async (params: SceneParams) => {
 
     if (params.playingMode === PlayingMode.Versus2P) {
         boards = [
-            new Board({ k: k, pos: k.vec2(0, 0), gameType: params.gameType }),
-            new Board({ k: k, pos: k.vec2(k.width() - (Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING), 0), gameType: params.gameType })
+            new Board({ k: k, pos: k.vec2(0, 100), gameType: params.gameType }),
+            new Board({ k: k, pos: k.vec2(k.width() - (Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING), 100), gameType: params.gameType })
         ]
+
+        k.trigger("configPlayers", "P1", "P2")
+        k.trigger("configPlayers", "P2", "P1")
 
         scores = boards.map((board, index) => {
             let score = scoreTemplate(board)
             return k.add([
-                k.text(score, { font: "score", size: 48, align: 'center', width: Constants.GEM_SIZE * 3 * Constants.SCALING }),
+                k.text(score, { font: "score", size: 48, align: 'center', width: k.width() - (Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING * 2) }),
                 k.pos(Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING, k.height() / 2 + (index * Constants.GEM_SIZE * 2))
             ])
         })
@@ -102,7 +105,7 @@ k.scene("1p", async (params: SceneParams) => {
     k.onDraw(() => {
         if (loserCount > 0) {
             k.drawText({
-                text: `${boards[0].player.id} ${boards[0].player.status}`,
+                text: `${boards[0].player.status}`,
                 size: 48 * Constants.SCALING,
                 font: "score",
                 pos: k.vec2(0, k.height() / 2),
@@ -111,7 +114,7 @@ k.scene("1p", async (params: SceneParams) => {
             })
 
             k.drawText({
-                text: `${boards[1].player.id} ${boards[1].player.status}`,
+                text: `${boards[1].player.status}`,
                 size: 48 * Constants.SCALING,
                 align: 'center',
                 font: "score",
@@ -124,8 +127,6 @@ k.scene("1p", async (params: SceneParams) => {
     })
 
     k.onUpdate(() => {
-        console.log("score", boards[0].player.score)
-
         scores[0].text = scoreTemplate(boards[0])
         scores[1].text = scoreTemplate(boards[1])
 
@@ -140,4 +141,4 @@ k.scene("1p", async (params: SceneParams) => {
 
 })
 
-k.go("1p", { playingMode: PlayingMode.Versus2P, gameType: GameType.Survival })
+k.go("2p", { playingMode: PlayingMode.Versus2P, gameType: GameType.Survival })
