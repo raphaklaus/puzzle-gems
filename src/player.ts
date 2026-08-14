@@ -113,20 +113,19 @@ export class Player {
 
         console.log("this", this)
 
-        this.obj.on("receive-attack", (args: any[]) => {
+        this.obj.on("receive-attack", async (args: any[]) => {
             if (this.isPaused) {
                 return
             }
 
             console.log("ATTACK!", this.id)
-            let gemsCount = args[0] as number
+            let index = args[0] as number
 
-            this.receiveAttack(gemsCount)
+            this.receiveAttack(index)
         })
 
         this.k.onKeyPress("q", () => {
             if (this.id === "P1") {
-                console.table("VAI")
                 console.table(this.gems)
             }
         })
@@ -144,21 +143,26 @@ export class Player {
         this.opponentId = playerId
     }
 
-    public async receiveAttack(_gemCount: number) {
+    public async receiveAttack(index: number) {
         console.log("receivedAttack")
         // for (let i = 0; i < array.length; i++) {
 
 
         // }
-        this.gems[0][1] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
-        this.gems[0][2] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
-        this.gems[0][4] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
+        await sleep(1000)
+
+        if (this.isPaused) {
+            return
+        }
+
+        this.gems[0][index] = { type: 99, ...defaultProperties(), value: 0 }
+        // this.gems[0][2] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
+        // this.gems[0][4] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
         await this.applyEffectors(false)
-        await sleep(700)
-        this.gems[0][0] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
-        this.gems[0][3] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
-        this.gems[0][5] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
-        await this.applyEffectors(false)
+        // this.gems[0][0] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
+        // this.gems[0][3] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
+        // this.gems[0][5] = { type: 99, ...defaultProperties(), value: generateRandomNumber() }
+        // await this.applyEffectors(false)
     }
 
     public update() {
@@ -172,17 +176,17 @@ export class Player {
         this.actions()
     }
 
-    private check99AtBottom() {
+    private check99AtBottom(depth: number) {
         for (let i = 0; i < Constants.GEM_PER_LINE; i++) {
             if (this.gems[Constants.MAX_GEMS_HEIGHT - 1][i].type === 99) {
-                this.board.destroy99(i)
+                this.board.giveBack99(i, this.cellX, depth * 1000)
             }
         }
     }
 
-    private attack(gemsCount: number) {
+    public attack(index: number) {
         console.log("pre-attack", this.opponentId)
-        this.k.trigger("receive-attack", this.opponentId, gemsCount)
+        this.k.trigger("receive-attack", this.opponentId, index)
     }
 
     public async move() {
@@ -226,26 +230,16 @@ export class Player {
             let lineIndex = this.cellY
             let index = this.cellX
 
-            // console.log("cellX", cellX)
-            // console.log("cellY", cellX)
-
 
             let lineIndexAux = this.cellY + this.auxDirection.y
             let indexAux = this.cellX + this.auxDirection.x
 
-            // if (gems[lineIndex][index].swapping || gems[lineIndexAux][indexAux].swapping) {
-            //     return
-            // }
-
-            // let lineIndexAux = (cursor.pos.y + (Constants.GEM_SIZE * auxCursorDir.y)) / Constants.GEM_SIZE
-            // let indexAux = (cursor.pos.x + (Constants.GEM_SIZE * auxCursorDir.x)) / Constants.GEM_SIZE
-
-            // console.log("lineIndexAux", lineIndexAux)
-            // console.log("indexAux", indexAux)
-
-
+            console.log("issueStrange before updateGemLocation")
             await this.board.updateGemLocation(lineIndex, index, lineIndexAux, indexAux, { duration: Constants.ANIMATION_SWAPPING_DURATION, easing: this.k.easings.easeOutCirc }, false);
-            await this.applyEffectors()
+            if (this.isAllMovementDone()) {
+                console.log("issueStrange before applyEffectors")
+                await this.applyEffectors()
+            }
         }
     }
 
@@ -260,7 +254,6 @@ export class Player {
     public async actions() {
         // TODO: actions logic
         // Example: swap gems, rotate, push new lines
-
 
         // Counter clock-wise
         if (this.input.isPressed("rotateCW")) {
@@ -286,7 +279,6 @@ export class Player {
             this.auxCursor.moveTo(this.k.vec2(this.auxDirection.x * Constants.GEM_SIZE, this.auxDirection.y * Constants.GEM_SIZE))
         }
 
-
         // Clock-wise
         if (this.input.isPressed("rotateCCW")) {
             if (this.cellY === this.gems.length - 1 && this.auxDirection.x > 0) {
@@ -311,7 +303,7 @@ export class Player {
             this.auxCursor.moveTo(this.k.vec2(this.auxDirection.x * Constants.GEM_SIZE, this.auxDirection.y * Constants.GEM_SIZE))
         }
 
-        if (this.input.isPressed("pushLineUp") && this.gameType === GameType.Time) {
+        if (this.input.isPressed("pushLineUp")) {
             await this.newLineRiser()
         }
     }
@@ -399,7 +391,7 @@ export class Player {
         return false
     }
 
-    public async applyEffectors(isSetup = false) {
+    public async applyEffectors(isSetup = false, depth = 0) {
         if (this.isPaused) {
             return
         }
@@ -419,12 +411,14 @@ export class Player {
             const [lineIndex, index] = cellAboveGround[0]
             const [lineIndexEmpty, indexEmpty] = cellAboveGround[1]
 
-            return this.board.updateGemLocation(lineIndex, index, lineIndexEmpty, indexEmpty, { duration: Constants.ANIMATION_GRAVITY_DURATION, easing: this.k.easings.easeInCubic }, isSetup)
+            let gravityDuration = (lineIndexEmpty - lineIndex) * (Constants.ANIMATION_GRAVITY_DURATION / 4)
+
+            return this.board.updateGemLocation(lineIndex, index, lineIndexEmpty, indexEmpty, { duration: Constants.ANIMATION_GRAVITY_DURATION + gravityDuration, easing: this.k.easings.easeInCubic }, isSetup)
         })
 
         await Promise.all(gravityAnimationPromises)
 
-        this.check99AtBottom()
+        this.check99AtBottom(depth)
 
         result = this.checkForAMatch(isSetup)
 
@@ -433,7 +427,7 @@ export class Player {
 
 
         if (result.length > 0 || danglingCells.length > 0) {
-            await this.applyEffectors(isSetup)
+            await this.applyEffectors(isSetup, depth + 1)
         }
     }
 
@@ -509,6 +503,95 @@ export class Player {
                     continue
                 }
 
+                // // Match Cross!
+                // if (lineIndex <= (this.gems.length - 3) && this.gems[lineIndex][index].type !== undefined && this.gems[lineIndex][index].type === this.gems[lineIndex + 1][index].type &&
+                //     this.gems[lineIndex + 2][index].type === this.gems[lineIndex][index].type && this.gems[lineIndex + 1][index - 1].type === this.gems[lineIndex][index].type && this.gems[lineIndex + 1][index + 1].type === this.gems[lineIndex][index].type) {
+                //     console.log("Match 5 vertical!")
+                //     if (!isSetup) {
+                //         this.score += 5
+                //         this.attack(5)
+                //     }
+                //     let toBeRemoved = [
+                //         [lineIndex, index],
+                //         [lineIndex + 1, index],
+                //         [lineIndex + 2, index],
+                //         [lineIndex + 1, index - 1],
+                //         [lineIndex + 1, index + 1]
+                //     ]
+
+                //     toBeRemoved.forEach(gemIndices => {
+                //         const [lineIndex, index] = gemIndices
+                //         this.gems[lineIndex][index].oldData = { type: this.gems[lineIndex][index].type }
+                //         this.gems[lineIndex][index].type = undefined
+
+                //         if (!isSetup) {
+                //             this.score += this.gems[lineIndex][index].value
+                //         }
+
+                //         result.push(gemIndices)
+                //     })
+                // }
+
+                // Match 5 L-shaped!
+                if (lineIndex <= (Constants.MAX_GEMS_HEIGHT - 1) - 2 && index <= 3 && this.gems[lineIndex][index].type !== undefined && this.gems[lineIndex][index].type === this.gems[lineIndex + 1][index].type &&
+                    this.gems[lineIndex + 2][index].type === this.gems[lineIndex][index].type && this.gems[lineIndex + 2][index + 1].type === this.gems[lineIndex][index].type && this.gems[lineIndex + 2][index + 2].type === this.gems[lineIndex][index].type) {
+                    console.log("Match 5 L-shaped!")
+                    if (!isSetup) {
+                        this.score += 5
+                        this.attack(index)
+                    }
+                    let toBeRemoved = [
+                        [lineIndex, index],
+                        [lineIndex + 1, index],
+                        [lineIndex + 2, index],
+                        [lineIndex + 2, index + 1],
+                        [lineIndex + 2, index + 2]
+
+                    ]
+
+                    toBeRemoved.forEach(gemIndices => {
+                        const [lineIndex, index] = gemIndices
+                        this.gems[lineIndex][index].oldData = { type: this.gems[lineIndex][index].type }
+                        this.gems[lineIndex][index].type = undefined
+
+                        if (!isSetup) {
+                            this.score += this.gems[lineIndex][index].value
+                        }
+
+                        result.push(gemIndices)
+                    })
+                }
+
+                // Match 5 L-shaped (inverted)!
+                if (lineIndex <= (Constants.MAX_GEMS_HEIGHT - 1) - 2 && index >= 2 && this.gems[lineIndex][index].type !== undefined && this.gems[lineIndex][index].type === this.gems[lineIndex + 1][index].type &&
+                    this.gems[lineIndex + 2][index].type === this.gems[lineIndex][index].type && this.gems[lineIndex + 2][index - 1].type === this.gems[lineIndex][index].type && this.gems[lineIndex + 2][index - 2].type === this.gems[lineIndex][index].type) {
+                    console.log("Match 5 L-shaped inverted!")
+                    if (!isSetup) {
+                        this.score += 5
+                        this.attack(index)
+                    }
+                    let toBeRemoved = [
+                        [lineIndex, index],
+                        [lineIndex + 1, index],
+                        [lineIndex + 2, index],
+                        [lineIndex + 2, index - 1],
+                        [lineIndex + 2, index - 2]
+
+                    ]
+
+                    toBeRemoved.forEach(gemIndices => {
+                        const [lineIndex, index] = gemIndices
+                        this.gems[lineIndex][index].oldData = { type: this.gems[lineIndex][index].type }
+                        this.gems[lineIndex][index].type = undefined
+
+                        if (!isSetup) {
+                            this.score += this.gems[lineIndex][index].value
+                        }
+
+                        result.push(gemIndices)
+                    })
+                }
+
                 // Match 4 horizontal!
                 if (index <= (Constants.GEM_PER_LINE - 4) && this.gems[lineIndex][index].type !== undefined && this.gems[lineIndex][index].type === this.gems[lineIndex][index + 1].type &&
                     this.gems[lineIndex][index + 2].type === this.gems[lineIndex][index].type && this.gems[lineIndex][index + 3].type === this.gems[lineIndex][index].type) {
@@ -516,7 +599,7 @@ export class Player {
 
                     if (!isSetup) {
                         this.score += 4
-                        this.attack(4)
+                        this.attack(index)
                     }
 
                     let toBeRemoved = [
@@ -577,7 +660,7 @@ export class Player {
                     console.log("Match 4 vertical!")
                     if (!isSetup) {
                         this.score += 4
-                        this.attack(4)
+                        this.attack(index)
                     }
                     let toBeRemoved = [
                         [lineIndex, index],

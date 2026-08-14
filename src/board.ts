@@ -3,7 +3,7 @@ import { Gems } from "./gems";
 import * as Constants from "./constants";
 import { GameType, Layout } from "./types";
 import { Player } from "./player";
-import { defaultProperties, sleep } from "./utils";
+import { cascadeProperty, defaultProperties, sleep } from "./utils";
 
 const typeToColorMap = new Map()
 
@@ -159,7 +159,7 @@ export class Board {
         }
     }
 
-    public destroy99(index: number) {
+    public async giveBack99(index: number, cellX: number, delay: number) {
         this.player.gems[Constants.MAX_GEMS_HEIGHT - 1][index].invisible = true
         this.player.gems[Constants.MAX_GEMS_HEIGHT - 1][index].oldData = { type: this.player.gems[Constants.MAX_GEMS_HEIGHT - 1][index].type }
         this.player.gems[Constants.MAX_GEMS_HEIGHT - 1][index].type = undefined
@@ -167,6 +167,10 @@ export class Board {
         this.animateMatching([
             [Constants.MAX_GEMS_HEIGHT - 1, index]
         ], false)
+
+        await sleep(delay)
+
+        this.player.attack(cellX)
     }
 
     public async showResults() {
@@ -250,21 +254,41 @@ export class Board {
                 console.log("matched2", this.player.gems[lineIndex][index].oldData?.type)
 
 
-                let obj = this.player.gems[lineIndex][index].swapReplicaRef || this.gemsContainer.add([
+                let obj = this.gemsContainer.add([
                     this.k.pos(x, y),
                     this.k.rect(Constants.GEM_SIZE, Constants.GEM_SIZE),
                     this.k.color(color),
                     this.k.outline(2, this.k.WHITE),
-                    this.k.animate()
+                    this.k.animate(),
+                    this.k.opacity(),
+                    cascadeProperty("opacity")
                 ])
 
+                obj.add([
+                    this.k.pos(2, 2),
+                    this.k.text(this.player.gems[lineIndex][index].value.toString(), {
+                        size: 12,
+                        font: "numbers",
+                        width: Constants.GEM_SIZE,
+                        // color: this.k.WHITE
+                    }),
+                    this.k.z(2),
+                    this.k.animate(),
+                    this.k.opacity()
+                ])
+
+
                 this.player.gems[lineIndex][index].invisible = true
-                // obj.animation.seek(0)
+                // obj.unanimateAll()
+                obj.animation.seek(0)
 
                 obj.animate("opacity", [1, 0], { duration: 0.35, loops: 1, easing: this.k.easings.easeOutExpo })
 
-                obj.onAnimateFinished(() => {
-                    resolve(obj)
+                obj.onAnimateChannelFinished((name) => {
+                    if (name === "opacity") {
+                        obj.destroy()
+                        resolve(obj)
+                    }
                 })
 
                 return promise
@@ -279,9 +303,11 @@ export class Board {
         const reset = () => {
             this.player.gems[lineIndexA][indexA].invisible = this.player.isPaused
             this.player.gems[lineIndexA][indexA].swapReplicaRef = undefined
+            this.player.gems[lineIndexA][indexA].swapping = false
         }
 
         this.player.gems[lineIndexA][indexA].invisible = true
+        this.player.gems[lineIndexA][indexA].swapping = true
 
         let x = Constants.GEM_SIZE * indexA
         let y = Constants.GEM_SIZE * lineIndexA
@@ -336,8 +362,8 @@ export class Board {
         if (this.player.gems[lineIndexA][indexA].type === 99 && this.player.gems[lineIndexB][indexB].type !== undefined || this.player.gems[lineIndexA][indexA].type !== undefined && this.player.gems[lineIndexB][indexB].type === 99) {
             console.log("shake!")
             let promises = isSetup ? [] : [
-                this.animateShake(lineIndexA, indexA, { duration: 1, easing: this.k.easings.easeInOutBounce, direction: 1 }),
-                this.animateShake(lineIndexB, indexB, { duration: 1, easing: this.k.easings.easeInOutBounce, direction: -1 }),
+                this.animateShake(lineIndexA, indexA, { duration: 0.3, easing: this.k.easings.easeInOutBounce, direction: 1 }),
+                this.animateShake(lineIndexB, indexB, { duration: 0.3, easing: this.k.easings.easeInOutBounce, direction: -1 }),
             ]
 
             let results = await Promise.allSettled(promises)
@@ -352,10 +378,18 @@ export class Board {
                 this.animate(lineIndexB, indexB, lineIndexA, indexA, animation)
             ]
 
+            this.player.gems[lineIndexA][indexA].invisible = true
+            this.player.gems[lineIndexB][indexB].invisible = true
+
             this.player.swap(lineIndexA, indexA, lineIndexB, indexB)
+
             let results = await Promise.allSettled(promises)
+
+            this.player.gems[lineIndexA][indexA].invisible = false
+            this.player.gems[lineIndexB][indexB].invisible = false
             results.forEach((result) => {
                 if (result.status === "fulfilled") {
+                    console.log("issueStrange finished anim!")
                     result.value.destroy()
                 }
             })
@@ -370,7 +404,7 @@ export class Board {
         console.log("Porra", this.player.gems[lineIndexA])
 
         if (this.player.gems[lineIndexA][indexA].type === undefined) {
-            reject()
+            reject("gem is undefined")
             return promise
         }
 
@@ -382,18 +416,20 @@ export class Board {
             // }
             // It only works because by the time the animation is finished, the swap has already inverted the order.
             // This is to allow the swap on the array to happen first and have fast cells swapping.
+
             console.log("reset, after lineIndex", lineIndexB)
             console.log("reset, after index", indexB)
             this.player.gems[lineIndexB][indexB].invisible = this.player.isPaused
             this.player.gems[lineIndexB][indexB].swapping = false
-            this.player.gems[lineIndexB][indexB].swapReplicaRef = undefined
+            // this.player.gems[lineIndexB][indexB].swapReplicaRef = undefined
         }
 
         // It only works because by the time the animation is finished, the swap has already inverted the order.
         // This is to allow the swap on the array to happen first and have fast cells swapping.
-        if (this.player.gems[lineIndexB][indexB].swapping) {
-            reset()
-        }
+        // if (this.player.gems[lineIndexB][indexB].swapping) {
+        //     reset()
+        //     reject("canceling previous swap")
+        // }
 
         this.player.gems[lineIndexA][indexA].invisible = true
         this.player.gems[lineIndexA][indexA].swapping = true
@@ -418,7 +454,7 @@ export class Board {
         //     return promise
         // }
 
-        let obj = this.player.gems[lineIndexA][indexA].swapReplicaRef || this.gemsContainer.add([
+        let obj = this.gemsContainer.add([
             this.k.pos(x, y),
             this.k.rect(Constants.GEM_SIZE, Constants.GEM_SIZE),
             this.k.color(color),
@@ -432,22 +468,24 @@ export class Board {
             this.k.text(this.player.gems[lineIndexA][indexA].value.toString(), {
                 size: 12,
                 font: "numbers",
-                width: 32,
+                width: Constants.GEM_SIZE,
                 // color: this.k.WHITE
             }),
             this.k.z(2)
         ])
 
-        this.player.gems[lineIndexA][indexA].swapReplicaRef = obj
+        // this.player.gems[lineIndexA][indexA].swapReplicaRef = obj
 
-        // obj.unanimateAll()
+        obj.unanimateAll()
         obj.animation.seek(0)
 
         obj.animate("pos", [this.k.vec2(x, y), this.k.vec2(destX, destY)], { duration, loops: 1, easing })
 
-        obj.onAnimateFinished(() => {
-            reset()
-            resolve(obj)
+        obj.onAnimateChannelFinished((name) => {
+            if (name === "pos") {
+                reset()
+                resolve(obj)
+            }
         })
 
         return promise

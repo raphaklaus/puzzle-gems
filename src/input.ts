@@ -102,6 +102,7 @@ export class Input {
         // console.log(mappedInput)
 
         return this.gamePad ? this.gamePad.isPressed(mappedInput) : this.k.isKeyPressed(mappedInput)
+        // return this.gamePad ? this.gamePad.isDown(mappedInput) : this.k.isKeyDown(mappedInput)
 
     }
 }

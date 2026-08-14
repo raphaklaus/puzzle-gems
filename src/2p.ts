@@ -59,8 +59,8 @@ k.scene("2p", async (params: SceneParams) => {
 
     if (params.playingMode === PlayingMode.Versus2P) {
         boards = [
-            new Board({ k: k, pos: k.vec2(0, 100), gameType: params.gameType }),
-            new Board({ k: k, pos: k.vec2(k.width() - (Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING), 100), gameType: params.gameType })
+            new Board({ k: k, pos: k.vec2(Constants.GEM_SIZE * Constants.SCALING, 100), gameType: params.gameType }),
+            new Board({ k: k, pos: k.vec2(k.width() - (Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING) - (Constants.GEM_SIZE * Constants.SCALING), 100), gameType: params.gameType })
         ]
 
         k.trigger("configPlayers", "P1", "P2")
@@ -70,7 +70,7 @@ k.scene("2p", async (params: SceneParams) => {
             let score = scoreTemplate(board)
             return k.add([
                 k.text(score, { font: "score", size: 48, align: 'center', width: k.width() - (Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING * 2) }),
-                k.pos(Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING, k.height() / 2 + (index * Constants.GEM_SIZE * 2))
+                k.pos((Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING), k.height() / 2 + (index * Constants.GEM_SIZE * 2))
             ])
         })
 
@@ -108,7 +108,7 @@ k.scene("2p", async (params: SceneParams) => {
                 text: `${boards[0].player.status}`,
                 size: 48 * Constants.SCALING,
                 font: "score",
-                pos: k.vec2(0, k.height() / 2),
+                pos: k.vec2(Constants.GEM_SIZE * Constants.SCALING, k.height() / 2),
                 align: 'center',
                 width: Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING,
             })
@@ -118,7 +118,7 @@ k.scene("2p", async (params: SceneParams) => {
                 size: 48 * Constants.SCALING,
                 align: 'center',
                 font: "score",
-                pos: k.vec2(k.width() - (Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING), k.height() / 2),
+                pos: k.vec2(k.width() - (Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING) - (Constants.GEM_SIZE * Constants.SCALING), k.height() / 2),
                 width: Constants.GEM_SIZE * Constants.GEM_PER_LINE * Constants.SCALING
                 // pos: k.vec2((k.width() - Constants.GEM_SIZE * Constants.GEM_PER_LINE) + Constants.GEM_SIZE * Constants.MAX_GEMS_HEIGHT / 2, k.height() / 2)
             })

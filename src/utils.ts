@@ -1,3 +1,5 @@
+import { Comp, GameObj } from "kaplay"
+
 export const defaultProperties = (invisible = false) => {
     return {
         swapping: false,
@@ -33,4 +35,23 @@ export const sleep = (ms: number) => {
     return new Promise((resolve, reject) => {
         setTimeout(resolve, ms)
     })
+}
+
+export const cascadeProperty = (property: string): Comp => {
+    return {
+        id: "cascadeProperty",
+        require: [property],
+        update(this: GameObj) {
+            const sync = (obj: GameObj, parentValue: number) => {
+                obj.children.forEach((child) => {
+                    if (child[property] !== undefined) {
+                        child[property] = parentValue
+                    }
+                    sync(child, parentValue)
+                })
+            }
+
+            sync(this, this.opacity)
+        }
+    }
 }
