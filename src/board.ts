@@ -159,7 +159,8 @@ export class Board {
         }
     }
 
-    public async giveBack99(index: number, cellX: number, delay: number) {
+    public async giveBack99(index: number, _cellX: number, delay: number) {
+        // temporary so I can test with a random column
         this.player.gems[Constants.MAX_GEMS_HEIGHT - 1][index].invisible = true
         this.player.gems[Constants.MAX_GEMS_HEIGHT - 1][index].oldData = { type: this.player.gems[Constants.MAX_GEMS_HEIGHT - 1][index].type }
         this.player.gems[Constants.MAX_GEMS_HEIGHT - 1][index].type = undefined
@@ -170,7 +171,8 @@ export class Board {
 
         await sleep(delay)
 
-        this.player.attack(cellX)
+        let newIndex = Math.floor(Math.random() * Constants.GEM_PER_LINE)
+        this.player.attack(newIndex)
     }
 
     public async showResults() {

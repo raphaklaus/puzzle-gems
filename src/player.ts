@@ -184,9 +184,9 @@ export class Player {
         }
     }
 
-    public attack(index: number) {
+    public attack(cellXindex: number) {
         console.log("pre-attack", this.opponentId)
-        this.k.trigger("receive-attack", this.opponentId, index)
+        this.k.trigger("receive-attack", this.opponentId, cellXindex)
     }
 
     public async move() {
