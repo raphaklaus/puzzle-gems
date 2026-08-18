@@ -3,7 +3,7 @@ import * as Constants from "./constants";
 import { GameType, PlayingMode } from "./types";
 import { Input } from "./input";
 import { create2PScene } from "./2p.ts";
-import { makeFader, makeGridObj } from "./utils.ts";
+import { makeFader, makeGridObj, sleep } from "./utils.ts";
 
 const k = kaplay({ letterbox: true, width: 1920, height: 1080 });
 
@@ -16,7 +16,7 @@ k.loadSprite("arrow-o", "./arrow-o.png");
 k.setBackground(k.Color.fromHex("#ffcf82"))
 
 
-k.scene("main", () => {
+k.scene("main", async () => {
     let chosen = false
     create2PScene(k)
     let { fadeIn, fadeOut } = makeFader(k)
@@ -73,9 +73,9 @@ k.scene("main", () => {
                 obj = k.add([...objFactory, k.pos(i * Constants.GEM_SIZE * Constants.SCALING, j * Constants.GEM_SIZE * Constants.SCALING), k.scale(Constants.SCALING)])
 
             } else {
-                obj = k.add([...objFactory, k.pos(i * Constants.GEM_SIZE * Constants.SCALING, y + ((j - HALF_POINT) * Constants.GEM_SIZE * Constants.SCALING)), k.scale(Constants.SCALING)])
-
+                obj = k.add([...objFactory, k.pos(i * Constants.GEM_SIZE * Constants.SCALING, y + ((j - HALF_POINT) * Constants.GEM_SIZE * Constants.SCALING)), k.scale(Constants.SCALING), k.area()])
             }
+
             grid.push({ obj, dir })
         }
     }
@@ -84,11 +84,69 @@ k.scene("main", () => {
 
     console.log(k.width())
 
-    // k.setCamPos(k.vec2(0, 1000))
+    // k.setCamPos(k.vec2(0, -200))
+
+    k.setGravity(100)
 
     // k.onDraw(() => {
 
     // })
+
+    // k.debug.inspect = true
+    const possibleColors = [
+        "#a6ffa7",
+        "#ff3d3d",
+        "#5a83ff",
+        "#d9b93b",
+        "#f08eff"
+    ]
+
+    const possibleNumbers = ["1", "2", "3", "4"]
+    Array.from({ length: 15 }).forEach(async (_element, i) => {
+
+        let seed = 100 + Math.floor(Math.random() * (i + 2) * 1000)
+        await sleep(seed)
+        let square = k.add([
+            k.rect(Constants.GEM_SIZE, Constants.GEM_SIZE),
+            k.scale(Constants.SCALING),
+            k.color(k.Color.fromHex(k.shuffle(possibleColors)[0])),
+            k.outline(2, k.WHITE),
+            k.pos(k.vec2(Math.floor(Math.random() * k.width()), - 64)),
+            k.area({ collisionIgnore: ["rain"] }),
+            k.rotate(),
+            k.body({
+                gravityScale: 5 + Math.floor(Math.random() * 10),
+            }),
+            // k.offscreen({ destroy: true }),
+            k.z(-2),
+            "rain"
+        ]);
+
+
+        square.add([
+            k.text(k.shuffle(possibleNumbers)[0], {
+                size: 12,
+                font: "numbers",
+                width: 32,
+            }),
+            k.pos(2, 2),
+            k.color(k.WHITE)
+
+        ])
+
+        square.onUpdate(() => {
+            square.angle += 100 * k.dt()
+
+            if (square.pos.y > k.height() + 64) {
+                square.moveTo(Math.floor(Math.random() * k.width()), -100)
+                square.vel.y = 0
+            }
+        })
+
+        // square.applyImpulse(k.vec2(k.clamp(seed / 10, 100, 200), 0))
+    })
+
+
 
     k.onUpdate(() => {
         grid.forEach((params: { obj: GameObj, dir: number }) => {
