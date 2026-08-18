@@ -1,4 +1,5 @@
-import { Comp, GameObj } from "kaplay"
+import { Comp, EaseFunc, EaseFuncs, GameObj, KAPLAYCtx } from "kaplay"
+import * as Constants from "./constants";
 
 export const defaultProperties = (invisible = false) => {
     return {
@@ -54,4 +55,49 @@ export const cascadeProperty = (property: string): Comp => {
             sync(this, this.opacity)
         }
     }
+}
+
+export const isGameObj = (obj: any): obj is GameObj => {
+    return (typeof obj.destroy === "function")
+}
+
+
+export const makeFader = (k: KAPLAYCtx) => {
+    let obj = k.add([
+        k.rect(k.width(), k.height()),
+        k.color(k.BLACK),
+        k.opacity(1),
+        k.animate(),
+        k.z(100)
+    ])
+
+    const fadeIn = (duration: number, easingType: EaseFuncs, callback: () => void) => {
+        obj.unanimateAll()
+        obj.animation.seek(0)
+        obj.animate("opacity", [1, 0], { duration, easing: k.easings[easingType], loops: 1 })
+
+        obj.onAnimateFinished(() => {
+            callback()
+        })
+    }
+
+    const fadeOut = (duration: number, easingType: EaseFuncs, callback: () => void) => {
+        obj.unanimateAll()
+        obj.animation.seek(0)
+        obj.animate("opacity", [0, 1], { duration, easing: k.easings[easingType], loops: 1 })
+
+        obj.onAnimateFinished(() => {
+            callback()
+        })
+    }
+
+    return { fadeIn, fadeOut }
+}
+
+export const makeGridObj = (k: KAPLAYCtx, colorAlternation: number) => {
+    return [
+        k.color(k.BLACK),
+        k.opacity(colorAlternation ? 0.1 : 0.05),
+        k.rect(Constants.GEM_SIZE, Constants.GEM_SIZE, { radius: 1 }),
+    ]
 }

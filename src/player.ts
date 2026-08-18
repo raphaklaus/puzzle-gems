@@ -11,7 +11,8 @@ interface PlayerParams {
     gemsContainer: GameObj,
     k: KAPLAYCtx,
     board: Board,
-    gameType: GameType
+    gameType: GameType,
+    playerInput: Input
 }
 
 export class Player {
@@ -136,7 +137,7 @@ export class Player {
             this.timeController = this.timerObj.loop(Constants.BASE_NEW_LINE_TIME, () => this.newLineRiser(), undefined, true)
         }
 
-        this.input = new Input({ k: this.k })
+        this.input = params.playerInput
     }
 
     public setOpponentId(playerId: string) {

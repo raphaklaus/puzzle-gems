@@ -3,7 +3,8 @@ import { Gems } from "./gems";
 import * as Constants from "./constants";
 import { GameType, Layout } from "./types";
 import { Player } from "./player";
-import { cascadeProperty, defaultProperties, sleep } from "./utils";
+import { cascadeProperty, defaultProperties, makeGridObj, sleep } from "./utils";
+import { Input } from "./input";
 
 const typeToColorMap = new Map()
 
@@ -11,7 +12,8 @@ interface BoardParams {
     k: KAPLAYCtx,
     // layout: Layout
     pos: Vec2,
-    gameType: GameType
+    gameType: GameType,
+    playerInput: Input
 }
 
 export class Board {
@@ -36,7 +38,7 @@ export class Board {
             this.k.animate(),
         ])
 
-        this.player = new Player({ gemsContainer: this.gemsContainer, k: this.k, board: this, gameType: this.gameType })
+        this.player = new Player({ gemsContainer: this.gemsContainer, k: this.k, board: this, gameType: this.gameType, playerInput: params.playerInput })
 
         this.gemsContainer.moveTo(params.pos)
 
@@ -61,7 +63,7 @@ export class Board {
     generateGrid() {
         for (let lineIndex = 0; lineIndex < Constants.MAX_GEMS_HEIGHT; lineIndex++) {
             for (let index = 0; index < Constants.GEM_PER_LINE; index++) {
-                let obj = this.gemsContainer.add(this.makeGridObj((lineIndex + index) % 2))
+                let obj = this.gemsContainer.add(makeGridObj(this.k, (lineIndex + index) % 2))
 
                 obj.use(this.k.pos(index * Constants.GEM_SIZE, lineIndex * Constants.GEM_SIZE))
                 obj.use(this.k.z(-1))
@@ -69,15 +71,6 @@ export class Board {
         }
 
     }
-
-    makeGridObj(colorAlternation: number) {
-        return [
-            this.k.color(this.k.BLACK),
-            this.k.opacity(colorAlternation ? 0.1 : 0.05),
-            this.k.rect(Constants.GEM_SIZE, Constants.GEM_SIZE, { radius: 1 }),
-        ]
-    }
-
 
     draw() {
         this.gemsContainer.onDraw(() => {
